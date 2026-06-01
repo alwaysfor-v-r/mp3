@@ -106,6 +106,10 @@
         </div>
 
         <label class="field field--check">
+          <input id="indent" type="checkbox" checked />
+          <span>문단 첫 줄 들여쓰기</span>
+        </label>
+        <label class="field field--check">
           <input id="dropcap" type="checkbox" />
           <span>첫 문단 첫 글자 키우기(드롭캡)</span>
         </label>
@@ -158,6 +162,10 @@
     <div class="editor-modal__panel">
       <div class="editor-modal__bar">
         <span class="editor-modal__title">로그 편집</span>
+        <div class="seg seg--mode" id="editorMode">
+          <label class="seg__opt"><input type="radio" name="emode" value="text" checked /><span>텍스트</span></label>
+          <label class="seg__opt"><input type="radio" name="emode" value="blocks" /><span>정밀(블록)</span></label>
+        </div>
         <div class="logtools" id="bigTools">
           <button type="button" class="chip" data-bact="narr">＊ 지문</button>
           <button type="button" class="chip" data-bact="dia">“ 대사</button>
@@ -168,6 +176,7 @@
       <div class="editor-split">
         <textarea id="logInputBig" class="editor-split__edit" spellcheck="false"
           placeholder="여기에 롤플레이 로그를 붙여넣고 편하게 편집하세요..."></textarea>
+        <div class="blocks" id="blockEditor" hidden></div>
         <div class="editor-split__preview" id="editorPreviewSlot"></div>
       </div>
     </div>

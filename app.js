@@ -32,6 +32,9 @@ const els = {
   paraSpace: $("#paraSpace"),
   firstGap: $("#firstGap"),
   spreadMode: $("#spreadMode"),
+  indent: $("#indent"),
+  blockEditor: $("#blockEditor"),
+  bigTools: $("#bigTools"),
 };
 
 const PAGE_SIZE = {
@@ -161,6 +164,58 @@ function parseLog(raw) {
   while (blocks.length && blocks[0].type === "scene") blocks.shift();
   while (blocks.length && blocks[blocks.length - 1].type === "scene") blocks.pop();
   return blocks;
+}
+
+/* ---------- 블록 편집용: 원문을 블록 단위로 쪼개기 ---------- */
+function splitBlocks(raw) {
+  let text = (raw || "").replace(/\r\n/g, "\n");
+  text = text.split("\n").map((l) => (isDivider(l) ? SCENE : l)).join("\n");
+
+  const narrs = [];
+  text = text.replace(/\*([\s\S]+?)\*/g, (_, inner) => {
+    const i = narrs.push(inner) - 1;
+    return `${NARR_OPEN}${i}${NARR_CLOSE}`;
+  });
+
+  const blocks = [];
+  const pushScene = () => {
+    if (blocks.length && blocks[blocks.length - 1].type !== "scene") blocks.push({ type: "scene" });
+  };
+
+  const lines = text.split("\n");
+  let blankRun = 0;
+  for (const line of lines) {
+    if (line.trim() === "") { blankRun++; continue; }
+    if (blankRun >= 2) pushScene();
+    blankRun = 0;
+    if (line.trim() === SCENE) { pushScene(); continue; }
+
+    const parts = line.split(new RegExp(`(${NARR_OPEN}\\d+${NARR_CLOSE})`));
+    for (const part of parts) {
+      const mm = new RegExp(`^${NARR_OPEN}(\\d+)${NARR_CLOSE}$`).exec(part);
+      if (mm) {
+        const inner = narrs[+mm[1]] || "";
+        inner.split(/\n+/).map((s) => s.trim()).filter(Boolean).forEach((para) => {
+          blocks.push({ type: "narration", text: para });
+        });
+      } else if (part.trim()) {
+        blocks.push({ type: "dialogue", text: part.trim() });
+      }
+    }
+  }
+
+  while (blocks.length && blocks[0].type === "scene") blocks.shift();
+  while (blocks.length && blocks[blocks.length - 1].type === "scene") blocks.pop();
+  return blocks;
+}
+function blocksToText(blocks) {
+  return blocks
+    .map((b) => {
+      if (b.type === "scene") return "***";
+      if (b.type === "narration") return "*" + (b.text || "").trim() + "*";
+      return (b.text || "").trim();
+    })
+    .join("\n");
 }
 
 /* ---------- 토큰 → HTML / 단어 배열 ---------- */
@@ -319,8 +374,9 @@ function renderBook() {
   const size = PAGE_SIZE[els.pageSize.value] || PAGE_SIZE.a5;
   const narr = document.querySelector('input[name="narr"]:checked')?.value || "plain";
   const ps = els.paraSpace.value;
+  const indent = els.indent.checked ? "indent-on" : "indent-off";
 
-  els.book.className = `book ${size.cls} fs-${els.fontSize.value} narration--${narr} ps-${ps}`;
+  els.book.className = `book ${size.cls} fs-${els.fontSize.value} narration--${narr} ps-${ps} ${indent}`;
   els.book.style.setProperty("--book-font", els.fontFamily.value);
   applyPrintPageSize(size.css);
 
@@ -430,6 +486,134 @@ function sceneIn(ta) {
 }
 function insertScene() { sceneIn(els.log); renderBook(); }
 
+/* ---------- 정밀(블록) 편집 ---------- */
+let blockState = [];
+let editorMode = "text";
+
+const TYPE_LABEL = { narration: "지문", dialogue: "대사", scene: "장면" };
+const TYPE_ORDER = ["narration", "dialogue", "scene"];
+
+function autoGrow(ta) {
+  ta.style.height = "auto";
+  ta.style.height = ta.scrollHeight + "px";
+}
+function syncFromBlocks(rebuild) {
+  const text = blocksToText(blockState);
+  els.logBig.value = text;
+  els.log.value = text;
+  if (rebuild) renderBlockEditor(false);
+  schedule();
+}
+function renderBlockEditor(reparse) {
+  if (reparse) blockState = splitBlocks(els.logBig.value);
+  const wrap = els.blockEditor;
+  wrap.innerHTML = "";
+
+  blockState.forEach((b, i) => {
+    const card = document.createElement("div");
+    card.className = "blk blk--" + b.type;
+
+    const bar = document.createElement("div");
+    bar.className = "blk__bar";
+
+    const sel = document.createElement("select");
+    sel.className = "blk__type";
+    TYPE_ORDER.forEach((t) => {
+      const o = document.createElement("option");
+      o.value = t; o.textContent = TYPE_LABEL[t];
+      if (t === b.type) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener("change", () => {
+      blockState[i].type = sel.value;
+      if (sel.value === "scene") blockState[i].text = "";
+      syncFromBlocks(true);
+    });
+
+    const spacer = document.createElement("div");
+    spacer.className = "blk__spacer";
+
+    const mkBtn = (label, cls, fn, title) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "blk__btn" + (cls ? " " + cls : "");
+      btn.textContent = label;
+      btn.title = title || "";
+      btn.addEventListener("click", fn);
+      return btn;
+    };
+    const up = mkBtn("↑", "", () => {
+      if (i === 0) return;
+      [blockState[i - 1], blockState[i]] = [blockState[i], blockState[i - 1]];
+      syncFromBlocks(true);
+    }, "위로");
+    const down = mkBtn("↓", "", () => {
+      if (i === blockState.length - 1) return;
+      [blockState[i + 1], blockState[i]] = [blockState[i], blockState[i + 1]];
+      syncFromBlocks(true);
+    }, "아래로");
+    const add = mkBtn("＋", "", () => {
+      blockState.splice(i + 1, 0, { type: "dialogue", text: "" });
+      syncFromBlocks(true);
+      const next = wrap.querySelectorAll(".blk")[i + 1];
+      const t = next && next.querySelector(".blk__text");
+      if (t) t.focus();
+    }, "아래에 추가");
+    const del = mkBtn("🗑", "blk__btn--del", () => {
+      blockState.splice(i, 1);
+      syncFromBlocks(true);
+    }, "삭제");
+
+    bar.append(sel, spacer, up, down, add, del);
+    card.appendChild(bar);
+
+    if (b.type === "scene") {
+      const lab = document.createElement("div");
+      lab.className = "blk__scene-label";
+      lab.textContent = "·  ·  ·  장면 구분";
+      card.appendChild(lab);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.className = "blk__text";
+      ta.rows = 1;
+      ta.value = b.text || "";
+      ta.spellcheck = false;
+      ta.placeholder = b.type === "narration" ? "지문(행동·묘사)을 입력" : "대사를 입력";
+      ta.addEventListener("input", () => {
+        blockState[i].text = ta.value;
+        autoGrow(ta);
+        const text = blocksToText(blockState);
+        els.logBig.value = text;
+        els.log.value = text;
+        schedule();
+      });
+      card.appendChild(ta);
+      requestAnimationFrame(() => autoGrow(ta));
+    }
+    wrap.appendChild(card);
+  });
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "blk__add";
+  addBtn.textContent = "＋ 블록 추가";
+  addBtn.addEventListener("click", () => {
+    blockState.push({ type: "dialogue", text: "" });
+    syncFromBlocks(true);
+    const last = wrap.querySelectorAll(".blk__text");
+    if (last.length) last[last.length - 1].focus();
+  });
+  wrap.appendChild(addBtn);
+}
+function setEditorMode(mode) {
+  editorMode = mode;
+  const blocks = mode === "blocks";
+  els.blockEditor.hidden = !blocks;
+  els.logBig.hidden = blocks;
+  els.bigTools.style.visibility = blocks ? "hidden" : "visible";
+  if (blocks) renderBlockEditor(true);
+}
+
 /* 큰 편집 화면 (좌: 편집 / 우: 실시간 미리보기) */
 let previewHome = null;
 function openEditor() {
@@ -438,6 +622,9 @@ function openEditor() {
   }
   els.editorPreviewSlot.appendChild(els.preview); // 미리보기를 모달로 이동
   els.logBig.value = els.log.value;
+  const tRadio = document.querySelector('input[name="emode"][value="text"]');
+  if (tRadio) tRadio.checked = true;
+  setEditorMode("text");
   els.editorModal.classList.add("open");
   els.editorModal.setAttribute("aria-hidden", "false");
   els.logBig.focus();
@@ -459,7 +646,7 @@ const schedule = () => { clearTimeout(timer); timer = setTimeout(renderBook, 130
 
 function bind() {
   [els.title, els.author, els.log].forEach((el) => el.addEventListener("input", schedule));
-  [els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap].forEach((el) =>
+  [els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent].forEach((el) =>
     el.addEventListener("change", renderBook)
   );
   document.querySelectorAll('input[name="narr"]').forEach((r) => r.addEventListener("change", renderBook));
@@ -492,6 +679,9 @@ function bind() {
   els.editorClose.addEventListener("click", closeEditor);
   els.editorModal.addEventListener("mousedown", (e) => { if (e.target === els.editorModal) closeEditor(); });
   els.logBig.addEventListener("input", () => { els.log.value = els.logBig.value; schedule(); });
+  document.querySelectorAll('input[name="emode"]').forEach((r) =>
+    r.addEventListener("change", (e) => setEditorMode(e.target.value))
+  );
   document.querySelectorAll(".chip[data-bact]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const act = btn.dataset.bact;
@@ -514,7 +704,8 @@ function bind() {
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && els.editorModal.classList.contains("open")) { closeEditor(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") { e.preventDefault(); saveAsPdf(); return; }
-    if (viewMode === "flip" && document.activeElement !== els.log) {
+    if (viewMode === "flip" && !els.editorModal.classList.contains("open") &&
+        document.activeElement !== els.log) {
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); go(1); }
       else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); go(-1); }
     }
