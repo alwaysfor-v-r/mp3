@@ -200,7 +200,7 @@ function makeContentPage(opts, pageNum) {
   head.className = "page__head";
   head.textContent = opts.title || "";
   const body = document.createElement("div");
-  body.className = "body";
+  body.className = "page__body body";
   const num = document.createElement("div");
   num.className = "page__num";
   num.textContent = String(pageNum);
