@@ -632,6 +632,7 @@ function setRichMode(on) {
   els.logtools.hidden = on;
   els.log.hidden = on;
   els.simpleHint.hidden = on;
+  document.querySelector(".layout").classList.toggle("rich-on", on);
   if (on) {
     els.richDoc.style.fontFamily = els.fontFamily.value;
     if (!richHasContent()) seedRichFromText();

@@ -16,6 +16,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -50,7 +51,10 @@ html, body {
 
 /* ===== 레이아웃 ===== */
 .layout { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 56px); }
-@media (max-width: 880px) { .layout { grid-template-columns: 1fr; height: auto; } }
+.layout.rich-on { grid-template-columns: 320px minmax(0, 1.05fr) minmax(0, 1fr); }
+@media (max-width: 880px) {
+  .layout, .layout.rich-on { grid-template-columns: 1fr; height: auto; }
+}
 
 /* ===== 설정 패널 ===== */
 .panel { border-right: 1px solid var(--line); background: var(--surface); overflow: hidden; }
@@ -256,46 +260,46 @@ html, body {
 .toggle__label { font-size: 13px; font-weight: 600; color: var(--text-soft); }
 .toggle input:checked ~ .toggle__label { color: var(--text); }
 
-/* 서식(워드) 편집 — 패널 안에서 본문 영역을 채움 */
-.rich-pane {
-  flex: 1 1 auto; min-height: 280px; display: flex; flex-direction: column;
-  border: 1px solid var(--line-strong); border-radius: 7px; overflow: hidden; background: var(--field-bg);
+/* 서식(워드) 편집 — 프리뷰 옆 큰 패널 */
+.editor-pane {
+  display: flex; flex-direction: column; height: 100%; min-width: 0; overflow: hidden;
+  border-right: 1px solid var(--line); background: var(--surface);
 }
-.rich-pane[hidden] { display: none; }
+.editor-pane[hidden] { display: none; }
+.editor-pane__bar {
+  flex: 0 0 auto; border-bottom: 1px solid var(--line); background: var(--surface);
+  padding: 10px 14px 8px;
+}
+.editor-pane__title { display: block; font-size: 13px; font-weight: 700; color: var(--text-soft); margin-bottom: 8px; }
 .rtoolbar {
-  flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
-  padding: 7px 8px; border-bottom: 1px solid var(--line); background: var(--surface);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
 }
 .rtb-btn {
-  min-width: 28px; height: 28px; padding: 0 6px; line-height: 1;
+  min-width: 30px; height: 30px; padding: 0 8px; line-height: 1;
   border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
-  color: var(--text); cursor: pointer; font-size: 13px; font-family: var(--ui-font);
+  color: var(--text); cursor: pointer; font-size: 14px; font-family: var(--ui-font);
 }
 .rtb-btn:hover { background: var(--field-bg); }
-.rtb-btn--ghost { color: var(--text-soft); }
+.rtb-btn--ghost { color: var(--text-soft); font-size: 12.5px; }
 .rtb-sel {
-  height: 28px; border: 1px solid var(--line); border-radius: 6px;
-  background: var(--bg); color: var(--text); font-size: 12.5px; padding: 0 4px;
-  font-family: var(--ui-font); cursor: pointer; max-width: 86px;
+  height: 30px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: 13px; padding: 0 6px;
+  font-family: var(--ui-font); cursor: pointer;
 }
 .rtb-color {
-  display: inline-flex; align-items: center; gap: 3px; height: 28px; padding: 0 6px;
+  display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 8px;
   border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
-  color: var(--text); font-size: 12.5px; cursor: pointer;
+  color: var(--text); font-size: 13px; cursor: pointer;
 }
-.rtb-color input { width: 20px; height: 18px; border: 0; background: none; padding: 0; cursor: pointer; }
-.rtb-sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+.rtb-color input { width: 22px; height: 20px; border: 0; background: none; padding: 0; cursor: pointer; }
+.rtb-sep { width: 1px; height: 20px; background: var(--line); margin: 0 3px; }
 .rich {
   flex: 1 1 auto; min-height: 0; overflow-y: auto;
-  padding: 14px 16px; background: var(--field-bg); color: var(--text);
-  font-size: 15px; line-height: 1.85; outline: none;
+  padding: 32px clamp(22px, 4vw, 60px); background: var(--bg); color: var(--text);
+  font-size: 16px; line-height: 1.95; outline: none;
 }
-.rich p { margin: 0 0 .15em; }
+.rich p { margin: 0 0 .2em; }
 .rich p.scene { text-align: center; color: var(--text-soft); letter-spacing: .3em; }
-@media (max-width: 760px) {
-  .editor-split { flex-direction: column; }
-  .editor-split__edit { flex: 0 0 45%; max-width: none; border-right: 0; border-bottom: 1px solid var(--line); }
-}
 
 /* ===== 인쇄 (PDF) ===== */
 @media print {
