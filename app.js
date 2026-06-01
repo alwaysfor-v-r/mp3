@@ -23,6 +23,10 @@ const els = {
   pageCount: $("#pageCount"),
   prevBtn: $("#prevBtn"),
   nextBtn: $("#nextBtn"),
+  editBtn: $("#editBtn"),
+  editorModal: $("#editorModal"),
+  editorClose: $("#editorClose"),
+  logBig: $("#logInputBig"),
 };
 
 const PAGE_SIZE = {
@@ -232,45 +236,51 @@ function paginate(blocks, opts) {
   }
 
   for (const b of blocks) {
-    const cls = b.type === "scene" ? "scene" : (b.type === "dialogue" ? "dia" : "narr");
-    const p = document.createElement("p");
-    p.className = cls;
-    if (opts.dropcap && b.type === "narration" && !st.usedDrop) { p.classList.add("dropcap"); st.usedDrop = true; }
-
-    if (b.type === "scene") { p.textContent = "·  ·  ·"; }
-    else { p.innerHTML = blockHtml(b, opts.autoQuote); }
-
-    st.body.appendChild(p);
-    if (!overflow()) continue;
-
-    // 들어갈 자리 없음 → 새 페이지로 이동
-    if (st.body.childElementCount > 1) {
-      st.body.removeChild(p);
-      newPage();
+    if (b.type === "scene") {
+      const p = document.createElement("p");
+      p.className = "scene";
+      p.textContent = "·  ·  ·";
       st.body.appendChild(p);
-      if (!overflow()) continue;
+      if (overflow() && st.body.childElementCount > 1) {
+        st.body.removeChild(p);
+        newPage();
+        st.body.appendChild(p);
+      }
+      continue;
     }
 
-    // 단일 블록이 한 페이지보다 큼 → 단어 단위로 쪼갬
-    if (b.type === "scene") continue;
+    const cls = b.type === "dialogue" ? "dia" : "narr";
+    const dropFirst = opts.dropcap && b.type === "narration" && !st.usedDrop;
+    if (dropFirst) st.usedDrop = true;
+
+    // 빠른 경로: 통째로 들어가면 그대로
+    const p = document.createElement("p");
+    p.className = dropFirst ? cls + " dropcap" : cls;
+    st.body.appendChild(p);
+    p.innerHTML = blockHtml(b, opts.autoQuote);
+    if (!overflow()) continue;
+
+    // 안 들어가면 → 현재 페이지 바닥까지 채우고 다음 쪽으로 이어붙임
     st.body.removeChild(p);
-    fillWords(blockWords(b, opts.autoQuote), cls, st, newPage, overflow);
+    fillWords(blockWords(b, opts.autoQuote), cls, dropFirst, st, newPage, overflow);
   }
 }
 
-function fillWords(words, cls, st, newPage, overflow) {
-  let p = document.createElement("p");
-  p.className = cls;
-  st.body.appendChild(p);
+function fillWords(words, cls, dropFirst, st, newPage, overflow) {
+  const makeP = (drop) => {
+    const p = document.createElement("p");
+    p.className = drop ? cls + " dropcap" : cls;
+    st.body.appendChild(p);
+    return p;
+  };
+  let p = makeP(dropFirst);
   let html = "";
   for (let i = 0; i < words.length; i++) {
     p.innerHTML = html + words[i];
     if (overflow() && html.trim() !== "") {
-      p.innerHTML = html; // 현재 페이지 확정
+      p.innerHTML = html;            // 현재 페이지 확정 (바닥까지 채움)
       newPage();
-      p = document.createElement("p");
-      p.className = cls;
-      st.body.appendChild(p);
+      p = makeP(false);              // 다음 쪽에서 같은 문단 이어쓰기
       html = words[i].replace(/^\s+/, "");
       p.innerHTML = html;
     } else {
@@ -359,15 +369,38 @@ function wrapSelection(before, after, placeholder) {
   ta.setSelectionRange(pos, pos + sel.length);
   renderBook();
 }
-function insertScene() {
-  const ta = els.log;
+function wrapIn(ta, before, after, placeholder) {
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.slice(s, e) || placeholder;
+  ta.value = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
+  const pos = s + before.length;
+  ta.focus();
+  ta.setSelectionRange(pos, pos + sel.length);
+}
+function sceneIn(ta) {
   const s = ta.selectionStart;
   const ins = "\n***\n";
   ta.value = ta.value.slice(0, s) + ins + ta.value.slice(s);
-  const pos = s + ins.length;
   ta.focus();
-  ta.setSelectionRange(pos, pos);
+  ta.setSelectionRange(s + ins.length, s + ins.length);
+}
+function insertScene() { sceneIn(els.log); renderBook(); }
+
+/* 큰 편집 화면 */
+function openEditor() {
+  els.logBig.value = els.log.value;
+  els.editorModal.classList.add("open");
+  els.editorModal.setAttribute("aria-hidden", "false");
+  els.logBig.focus();
+  const len = els.logBig.value.length;
+  els.logBig.setSelectionRange(len, len);
+}
+function closeEditor() {
+  els.editorModal.classList.remove("open");
+  els.editorModal.setAttribute("aria-hidden", "true");
+  els.log.value = els.logBig.value;
   renderBook();
+  els.log.focus();
 }
 
 /* ---------- 이벤트 ---------- */
@@ -387,12 +420,28 @@ function bind() {
   els.prevBtn.addEventListener("click", () => go(-1));
   els.nextBtn.addEventListener("click", () => go(1));
 
-  document.querySelectorAll(".chip").forEach((btn) =>
+  document.querySelectorAll(".chip[data-act]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const act = btn.dataset.act;
       if (act === "narr") wrapSelection("*", "*", "지문을 입력");
       else if (act === "dia") wrapSelection('"', '"', "대사를 입력");
       else if (act === "scene") insertScene();
+    })
+  );
+
+  // 큰 편집 화면
+  els.editBtn.addEventListener("click", openEditor);
+  els.editorClose.addEventListener("click", closeEditor);
+  els.editorModal.addEventListener("mousedown", (e) => { if (e.target === els.editorModal) closeEditor(); });
+  els.logBig.addEventListener("input", () => { els.log.value = els.logBig.value; schedule(); });
+  document.querySelectorAll(".chip[data-bact]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const act = btn.dataset.bact;
+      if (act === "narr") wrapIn(els.logBig, "*", "*", "지문을 입력");
+      else if (act === "dia") wrapIn(els.logBig, '"', '"', "대사를 입력");
+      else if (act === "scene") sceneIn(els.logBig);
+      els.log.value = els.logBig.value;
+      schedule();
     })
   );
 
@@ -405,6 +454,7 @@ function bind() {
   els.clearBtn.addEventListener("click", () => { els.log.value = ""; renderBook(); els.log.focus(); });
 
   window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && els.editorModal.classList.contains("open")) { closeEditor(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") { e.preventDefault(); saveAsPdf(); return; }
     if (viewMode === "flip" && document.activeElement !== els.log) {
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); go(1); }

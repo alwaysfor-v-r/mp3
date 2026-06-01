@@ -25,6 +25,7 @@
       <span class="topbar__title">회지 메이커</span>
     </div>
     <div class="topbar__actions">
+      <button id="editBtn" class="btn btn--ghost" type="button">✎ 크게 편집</button>
       <button id="sampleBtn" class="btn btn--ghost" type="button">예시 넣기</button>
       <button id="clearBtn" class="btn btn--ghost" type="button">비우기</button>
       <button id="pdfBtn" class="btn btn--primary" type="button">PDF로 저장</button>
@@ -125,6 +126,23 @@
       </div>
     </section>
   </main>
+
+  <!-- 큰 편집 화면 -->
+  <div class="editor-modal no-print" id="editorModal" aria-hidden="true">
+    <div class="editor-modal__panel">
+      <div class="editor-modal__bar">
+        <span class="editor-modal__title">로그 편집</span>
+        <div class="logtools" id="bigTools">
+          <button type="button" class="chip" data-bact="narr">＊ 지문</button>
+          <button type="button" class="chip" data-bact="dia">“ 대사</button>
+          <button type="button" class="chip" data-bact="scene">⸻ 장면 구분</button>
+        </div>
+        <button class="btn btn--primary" id="editorClose" type="button">완료</button>
+      </div>
+      <textarea id="logInputBig" class="editor-modal__ta" spellcheck="false"
+        placeholder="여기에 롤플레이 로그를 붙여넣고 편하게 편집하세요..."></textarea>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
