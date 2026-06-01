@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=13" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -25,6 +25,12 @@
       <span class="topbar__title">회지 메이커</span>
     </div>
     <div class="topbar__actions">
+      <label class="toggle toggle--top" title="서식 편집 켜기/끄기">
+        <input type="checkbox" id="richToggle" />
+        <span class="toggle__track"><span class="toggle__dot"></span></span>
+        <span class="toggle__label">서식 편집</span>
+      </label>
+      <span class="topbar__div"></span>
       <button id="sampleBtn" class="btn btn--ghost" type="button">예시 넣기</button>
       <button id="clearBtn" class="btn btn--ghost" type="button">비우기</button>
       <button id="pdfBtn" class="btn btn--primary" type="button">PDF로 저장</button>
@@ -117,14 +123,7 @@
           <span>따옴표 없는 대사에 자동으로 “ ” 붙이기</span>
         </label>
 
-        <div class="logedit-bar">
-          <h2 class="panel__heading panel__heading--inline">로그 편집</h2>
-          <label class="toggle" title="서식 편집 켜기/끄기">
-            <input type="checkbox" id="richToggle" />
-            <span class="toggle__track"><span class="toggle__dot"></span></span>
-            <span class="toggle__label">서식</span>
-          </label>
-        </div>
+        <h2 class="panel__heading">로그 편집</h2>
 
         <p class="panel__hint" id="simpleHint">
           <code>*지문*</code> · <code>"대사"</code> · 그냥 적은 줄 = 대사.
@@ -203,6 +202,6 @@
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
