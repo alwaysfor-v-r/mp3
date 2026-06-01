@@ -27,6 +27,8 @@ const els = {
   editorModal: $("#editorModal"),
   editorClose: $("#editorClose"),
   logBig: $("#logInputBig"),
+  preview: $("#preview"),
+  editorPreviewSlot: $("#editorPreviewSlot"),
 };
 
 const PAGE_SIZE = {
@@ -386,8 +388,13 @@ function sceneIn(ta) {
 }
 function insertScene() { sceneIn(els.log); renderBook(); }
 
-/* 큰 편집 화면 */
+/* 큰 편집 화면 (좌: 편집 / 우: 실시간 미리보기) */
+let previewHome = null;
 function openEditor() {
+  if (!previewHome) {
+    previewHome = { parent: els.preview.parentNode, next: els.preview.nextSibling };
+  }
+  els.editorPreviewSlot.appendChild(els.preview); // 미리보기를 모달로 이동
   els.logBig.value = els.log.value;
   els.editorModal.classList.add("open");
   els.editorModal.setAttribute("aria-hidden", "false");
@@ -398,6 +405,7 @@ function openEditor() {
 function closeEditor() {
   els.editorModal.classList.remove("open");
   els.editorModal.setAttribute("aria-hidden", "true");
+  if (previewHome) previewHome.parent.insertBefore(els.preview, previewHome.next); // 원위치
   els.log.value = els.logBig.value;
   renderBook();
   els.log.focus();

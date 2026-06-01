@@ -110,7 +110,7 @@
     </section>
 
     <!-- ===== 미리보기 ===== -->
-    <section class="preview" aria-label="미리보기">
+    <section class="preview" id="preview" aria-label="미리보기">
       <div class="viewbar no-print">
         <div class="seg seg--view" id="viewMode">
           <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤</span></label>
@@ -127,7 +127,7 @@
     </section>
   </main>
 
-  <!-- 큰 편집 화면 -->
+  <!-- 큰 편집 화면 (좌: 편집 / 우: 실시간 미리보기) -->
   <div class="editor-modal no-print" id="editorModal" aria-hidden="true">
     <div class="editor-modal__panel">
       <div class="editor-modal__bar">
@@ -139,8 +139,11 @@
         </div>
         <button class="btn btn--primary" id="editorClose" type="button">완료</button>
       </div>
-      <textarea id="logInputBig" class="editor-modal__ta" spellcheck="false"
-        placeholder="여기에 롤플레이 로그를 붙여넣고 편하게 편집하세요..."></textarea>
+      <div class="editor-split">
+        <textarea id="logInputBig" class="editor-split__edit" spellcheck="false"
+          placeholder="여기에 롤플레이 로그를 붙여넣고 편하게 편집하세요..."></textarea>
+        <div class="editor-split__preview" id="editorPreviewSlot"></div>
+      </div>
     </div>
   </div>
 
