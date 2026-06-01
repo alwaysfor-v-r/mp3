@@ -33,8 +33,10 @@ const els = {
   firstGap: $("#firstGap"),
   spreadMode: $("#spreadMode"),
   indent: $("#indent"),
-  blockEditor: $("#blockEditor"),
   bigTools: $("#bigTools"),
+  richPane: $("#richPane"),
+  richDoc: $("#richDoc"),
+  rtoolbar: $("#rtoolbar"),
 };
 
 const PAGE_SIZE = {
@@ -61,6 +63,8 @@ let viewMode = "scroll";
 let spreadOn = false;
 let currentIndex = 0;
 let totalPages = 0;
+let useRich = false;
+let editorMode = "text";
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -359,6 +363,146 @@ function fillWords(words, cls, dropFirst, st, newPage, overflow) {
   }
 }
 
+/* ---------- 서식(워드) 콘텐츠 → 페이지 (서식 보존 분할) ---------- */
+function getRichBlocks() {
+  const out = [];
+  els.richDoc.childNodes.forEach((n) => {
+    if (n.nodeType === Node.TEXT_NODE) {
+      if (n.textContent.trim()) {
+        const p = document.createElement("p");
+        p.className = "rblk";
+        p.textContent = n.textContent;
+        out.push(p);
+      }
+      return;
+    }
+    if (n.nodeType !== Node.ELEMENT_NODE) return;
+    const txt = n.textContent || "";
+    const isScene = (n.classList && n.classList.contains("scene")) || isDivider(txt);
+    const p = document.createElement("p");
+    p.className = "rblk" + (isScene ? " scene" : "");
+    const st = n.getAttribute("style");
+    if (st && !isScene) p.setAttribute("style", st);
+    if (isScene) p.textContent = "·  ·  ·";
+    else p.innerHTML = n.innerHTML && n.innerHTML.trim() ? n.innerHTML : "<br>";
+    out.push(p);
+  });
+  return out;
+}
+
+function shallowCloneEl(el) {
+  const c = document.createElement(el.tagName);
+  if (el.className) c.className = el.className;
+  const st = el.getAttribute("style");
+  if (st) c.setAttribute("style", st);
+  return c;
+}
+/* cur에 srcNodes를 넘침 직전까지 채우고, 남은 노드 배열을 반환(서식 보존) */
+function fillInline(cur, srcNodes, overflow) {
+  for (let idx = 0; idx < srcNodes.length; idx++) {
+    const node = srcNodes[idx];
+    if (node.nodeType === Node.TEXT_NODE) {
+      const tokens = node.textContent.split(/(\s+)/).filter((t) => t !== "");
+      const tnode = document.createTextNode("");
+      cur.appendChild(tnode);
+      let acc = "";
+      for (let i = 0; i < tokens.length; i++) {
+        tnode.textContent = acc + tokens[i];
+        if (overflow() && acc.trim() !== "") {
+          tnode.textContent = acc;
+          const restText = tokens.slice(i).join("").replace(/^\s+/, "");
+          const leftover = [];
+          if (restText) leftover.push(document.createTextNode(restText));
+          for (let j = idx + 1; j < srcNodes.length; j++) leftover.push(srcNodes[j]);
+          return leftover;
+        }
+        acc += tokens[i];
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const clone = shallowCloneEl(node);
+      cur.appendChild(clone);
+      const childLeft = fillInline(clone, [...node.childNodes], overflow);
+      if (childLeft.length) {
+        const leftEl = shallowCloneEl(node);
+        childLeft.forEach((n) => leftEl.appendChild(n));
+        const leftover = [leftEl];
+        for (let j = idx + 1; j < srcNodes.length; j++) leftover.push(srcNodes[j]);
+        return leftover;
+      }
+      if (overflow() && cur.childNodes.length > 1) {
+        cur.removeChild(clone);
+        const leftover = [node];
+        for (let j = idx + 1; j < srcNodes.length; j++) leftover.push(srcNodes[j]);
+        return leftover;
+      }
+    }
+  }
+  return [];
+}
+function fillBlock(body, blockEl, overflow) {
+  const cur = shallowCloneEl(blockEl);
+  body.appendChild(cur);
+  const leftover = fillInline(cur, [...blockEl.childNodes], overflow);
+  if (!leftover.length) return null;
+  const rem = shallowCloneEl(blockEl);
+  leftover.forEach((n) => rem.appendChild(n));
+  return rem;
+}
+
+function paginateRich(blocks, opts) {
+  els.book.classList.remove("book--flip");
+  els.book.innerHTML = "";
+  if (opts.title) els.book.appendChild(makeTitlePage(opts));
+
+  const st = { pageNum: 0, body: null };
+  const newPage = () => {
+    st.pageNum += 1;
+    const { page, body } = makeContentPage(opts, st.pageNum);
+    els.book.appendChild(page);
+    st.body = body;
+  };
+  newPage();
+  const overflow = () => st.body.scrollHeight > st.body.clientHeight + 1;
+
+  if (!blocks.length) {
+    st.body.innerHTML = `<div class="empty">서식 편집에서 글을 작성하면<br/>여기에 책 내지처럼 정리돼요.</div>`;
+    st.body.parentElement.querySelector(".page__num").textContent = "";
+    return;
+  }
+
+  if (opts.firstGap && opts.firstGap !== "none") {
+    const sp = document.createElement("div");
+    sp.setAttribute("aria-hidden", "true");
+    sp.style.height = opts.firstGap === "lg" ? "70mm" : "38mm";
+    sp.style.flex = "0 0 auto";
+    st.body.appendChild(sp);
+  }
+
+  for (const blk of blocks) {
+    const whole = blk.cloneNode(true);
+    st.body.appendChild(whole);
+    if (!overflow()) continue;
+    st.body.removeChild(whole);
+
+    if (st.body.childElementCount > 0) {
+      newPage();
+      const w2 = blk.cloneNode(true);
+      st.body.appendChild(w2);
+      if (!overflow()) continue;
+      st.body.removeChild(w2);
+    }
+
+    let block = blk.cloneNode(true);
+    let guard = 0;
+    while (block && guard++ < 4000) {
+      const rem = fillBlock(st.body, block, overflow);
+      if (!rem) break;
+      newPage();
+      block = rem;
+    }
+  }
+}
+
 /* ---------- 렌더 ---------- */
 function getOpts() {
   return {
@@ -380,7 +524,8 @@ function renderBook() {
   els.book.style.setProperty("--book-font", els.fontFamily.value);
   applyPrintPageSize(size.css);
 
-  paginate(parseLog(els.log.value), opts);
+  if (useRich) paginateRich(getRichBlocks(), opts);
+  else paginate(parseLog(els.log.value), opts);
   updateView();
 }
 
@@ -486,132 +631,78 @@ function sceneIn(ta) {
 }
 function insertScene() { sceneIn(els.log); renderBook(); }
 
-/* ---------- 정밀(블록) 편집 ---------- */
-let blockState = [];
-let editorMode = "text";
-
-const TYPE_LABEL = { narration: "지문", dialogue: "대사", scene: "장면" };
-const TYPE_ORDER = ["narration", "dialogue", "scene"];
-
-function autoGrow(ta) {
-  ta.style.height = "auto";
-  ta.style.height = ta.scrollHeight + "px";
+/* ---------- 서식(워드) 편집 ---------- */
+let savedRange = null;
+function saveRange() {
+  const s = window.getSelection();
+  if (s && s.rangeCount && els.richDoc.contains(s.anchorNode)) {
+    savedRange = s.getRangeAt(0).cloneRange();
+  }
 }
-function syncFromBlocks(rebuild) {
-  const text = blocksToText(blockState);
-  els.logBig.value = text;
-  els.log.value = text;
-  if (rebuild) renderBlockEditor(false);
+function restoreRange() {
+  if (!savedRange) return;
+  const s = window.getSelection();
+  s.removeAllRanges();
+  s.addRange(savedRange);
+}
+function richHasContent() {
+  const t = (els.richDoc.textContent || "").trim();
+  return t.length > 0;
+}
+function seedRichFromText() {
+  const blocks = parseLog(els.log.value);
+  const html = blocks
+    .map((b) => {
+      if (b.type === "scene") return '<p class="scene">·  ·  ·</p>';
+      const text = b.tokens
+        .map((t) => {
+          const inner = escapeHtml(t.text);
+          if (t.type === "narration") return inner;
+          return t.quoted ? `“${inner}”` : inner;
+        })
+        .join(" ");
+      return `<p>${text || "<br>"}</p>`;
+    })
+    .join("");
+  els.richDoc.innerHTML = html || "<p><br></p>";
+}
+function execRich(cmd, val) {
+  els.richDoc.focus();
+  restoreRange();
+  try { document.execCommand("styleWithCSS", false, true); } catch (e) {}
+  document.execCommand(cmd, false, val);
+  saveRange();
   schedule();
 }
-function renderBlockEditor(reparse) {
-  if (reparse) blockState = splitBlocks(els.logBig.value);
-  const wrap = els.blockEditor;
-  wrap.innerHTML = "";
-
-  blockState.forEach((b, i) => {
-    const card = document.createElement("div");
-    card.className = "blk blk--" + b.type;
-
-    const bar = document.createElement("div");
-    bar.className = "blk__bar";
-
-    const sel = document.createElement("select");
-    sel.className = "blk__type";
-    TYPE_ORDER.forEach((t) => {
-      const o = document.createElement("option");
-      o.value = t; o.textContent = TYPE_LABEL[t];
-      if (t === b.type) o.selected = true;
-      sel.appendChild(o);
-    });
-    sel.addEventListener("change", () => {
-      blockState[i].type = sel.value;
-      if (sel.value === "scene") blockState[i].text = "";
-      syncFromBlocks(true);
-    });
-
-    const spacer = document.createElement("div");
-    spacer.className = "blk__spacer";
-
-    const mkBtn = (label, cls, fn, title) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "blk__btn" + (cls ? " " + cls : "");
-      btn.textContent = label;
-      btn.title = title || "";
-      btn.addEventListener("click", fn);
-      return btn;
-    };
-    const up = mkBtn("↑", "", () => {
-      if (i === 0) return;
-      [blockState[i - 1], blockState[i]] = [blockState[i], blockState[i - 1]];
-      syncFromBlocks(true);
-    }, "위로");
-    const down = mkBtn("↓", "", () => {
-      if (i === blockState.length - 1) return;
-      [blockState[i + 1], blockState[i]] = [blockState[i], blockState[i + 1]];
-      syncFromBlocks(true);
-    }, "아래로");
-    const add = mkBtn("＋", "", () => {
-      blockState.splice(i + 1, 0, { type: "dialogue", text: "" });
-      syncFromBlocks(true);
-      const next = wrap.querySelectorAll(".blk")[i + 1];
-      const t = next && next.querySelector(".blk__text");
-      if (t) t.focus();
-    }, "아래에 추가");
-    const del = mkBtn("🗑", "blk__btn--del", () => {
-      blockState.splice(i, 1);
-      syncFromBlocks(true);
-    }, "삭제");
-
-    bar.append(sel, spacer, up, down, add, del);
-    card.appendChild(bar);
-
-    if (b.type === "scene") {
-      const lab = document.createElement("div");
-      lab.className = "blk__scene-label";
-      lab.textContent = "·  ·  ·  장면 구분";
-      card.appendChild(lab);
-    } else {
-      const ta = document.createElement("textarea");
-      ta.className = "blk__text";
-      ta.rows = 1;
-      ta.value = b.text || "";
-      ta.spellcheck = false;
-      ta.placeholder = b.type === "narration" ? "지문(행동·묘사)을 입력" : "대사를 입력";
-      ta.addEventListener("input", () => {
-        blockState[i].text = ta.value;
-        autoGrow(ta);
-        const text = blocksToText(blockState);
-        els.logBig.value = text;
-        els.log.value = text;
-        schedule();
-      });
-      card.appendChild(ta);
-      requestAnimationFrame(() => autoGrow(ta));
-    }
-    wrap.appendChild(card);
+function applyFontSizePx(px) {
+  els.richDoc.focus();
+  restoreRange();
+  try { document.execCommand("styleWithCSS", false, false); } catch (e) {}
+  document.execCommand("fontSize", false, "7");
+  els.richDoc.querySelectorAll('font[size="7"]').forEach((f) => {
+    f.removeAttribute("size");
+    f.style.fontSize = px + "px";
   });
-
-  const addBtn = document.createElement("button");
-  addBtn.type = "button";
-  addBtn.className = "blk__add";
-  addBtn.textContent = "＋ 블록 추가";
-  addBtn.addEventListener("click", () => {
-    blockState.push({ type: "dialogue", text: "" });
-    syncFromBlocks(true);
-    const last = wrap.querySelectorAll(".blk__text");
-    if (last.length) last[last.length - 1].focus();
-  });
-  wrap.appendChild(addBtn);
+  saveRange();
+  schedule();
 }
 function setEditorMode(mode) {
   editorMode = mode;
-  const blocks = mode === "blocks";
-  els.blockEditor.hidden = !blocks;
-  els.logBig.hidden = blocks;
-  els.bigTools.style.visibility = blocks ? "hidden" : "visible";
-  if (blocks) renderBlockEditor(true);
+  const rich = mode === "rich";
+  els.richPane.hidden = !rich;
+  els.logBig.hidden = rich;
+  els.bigTools.style.visibility = rich ? "hidden" : "visible";
+  if (rich) {
+    useRich = true;
+    els.richDoc.style.fontFamily = els.fontFamily.value;
+    if (!richHasContent()) seedRichFromText();
+    try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch (e) {}
+    renderBook();
+    els.richDoc.focus();
+  } else {
+    useRich = false;
+    renderBook();
+  }
 }
 
 /* 큰 편집 화면 (좌: 편집 / 우: 실시간 미리보기) */
@@ -622,22 +713,24 @@ function openEditor() {
   }
   els.editorPreviewSlot.appendChild(els.preview); // 미리보기를 모달로 이동
   els.logBig.value = els.log.value;
-  const tRadio = document.querySelector('input[name="emode"][value="text"]');
-  if (tRadio) tRadio.checked = true;
-  setEditorMode("text");
+  const mode = useRich ? "rich" : "text";
+  const radio = document.querySelector(`input[name="emode"][value="${mode}"]`);
+  if (radio) radio.checked = true;
+  setEditorMode(mode);
   els.editorModal.classList.add("open");
   els.editorModal.setAttribute("aria-hidden", "false");
-  els.logBig.focus();
-  const len = els.logBig.value.length;
-  els.logBig.setSelectionRange(len, len);
+  if (mode === "text") {
+    els.logBig.focus();
+    const len = els.logBig.value.length;
+    els.logBig.setSelectionRange(len, len);
+  }
 }
 function closeEditor() {
   els.editorModal.classList.remove("open");
   els.editorModal.setAttribute("aria-hidden", "true");
   if (previewHome) previewHome.parent.insertBefore(els.preview, previewHome.next); // 원위치
-  els.log.value = els.logBig.value;
+  if (!useRich) els.log.value = els.logBig.value;
   renderBook();
-  els.log.focus();
 }
 
 /* ---------- 이벤트 ---------- */
@@ -682,6 +775,30 @@ function bind() {
   document.querySelectorAll('input[name="emode"]').forEach((r) =>
     r.addEventListener("change", (e) => setEditorMode(e.target.value))
   );
+
+  // 서식(워드) 편집 동작
+  els.richDoc.addEventListener("input", schedule);
+  ["keyup", "mouseup"].forEach((ev) => els.richDoc.addEventListener(ev, saveRange));
+  els.richDoc.addEventListener("blur", saveRange);
+  els.rtoolbar.querySelectorAll("[data-cmd]").forEach((el) => {
+    const cmd = el.dataset.cmd;
+    if (el.tagName === "SELECT") {
+      el.addEventListener("change", () => {
+        if (cmd === "fontSize") applyFontSizePx(el.value);
+        else execRich(cmd, el.value);
+        el.selectedIndex = 0;
+      });
+    } else if (el.tagName === "INPUT") {
+      el.addEventListener("mousedown", saveRange);
+      el.addEventListener("input", () => execRich(cmd, el.value));
+    } else {
+      el.addEventListener("mousedown", (e) => { e.preventDefault(); saveRange(); });
+      el.addEventListener("click", () => {
+        if (cmd === "seed") { seedRichFromText(); renderBook(); els.richDoc.focus(); }
+        else execRich(cmd);
+      });
+    }
+  });
   document.querySelectorAll(".chip[data-bact]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const act = btn.dataset.bact;
@@ -697,9 +814,21 @@ function bind() {
   els.sampleBtn.addEventListener("click", () => {
     els.log.value = SAMPLE;
     if (!els.title.value) els.title.value = "비 오는 날의 약속";
+    useRich = false;
+    els.richDoc.innerHTML = "";
+    const tRadio = document.querySelector('input[name="emode"][value="text"]');
+    if (tRadio) tRadio.checked = true;
     renderBook();
   });
-  els.clearBtn.addEventListener("click", () => { els.log.value = ""; renderBook(); els.log.focus(); });
+  els.clearBtn.addEventListener("click", () => {
+    els.log.value = "";
+    useRich = false;
+    els.richDoc.innerHTML = "";
+    const tRadio = document.querySelector('input[name="emode"][value="text"]');
+    if (tRadio) tRadio.checked = true;
+    renderBook();
+    els.log.focus();
+  });
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && els.editorModal.classList.contains("open")) { closeEditor(); return; }

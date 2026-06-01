@@ -164,7 +164,7 @@
         <span class="editor-modal__title">로그 편집</span>
         <div class="seg seg--mode" id="editorMode">
           <label class="seg__opt"><input type="radio" name="emode" value="text" checked /><span>텍스트</span></label>
-          <label class="seg__opt"><input type="radio" name="emode" value="blocks" /><span>정밀(블록)</span></label>
+          <label class="seg__opt"><input type="radio" name="emode" value="rich" /><span>서식(워드)</span></label>
         </div>
         <div class="logtools" id="bigTools">
           <button type="button" class="chip" data-bact="narr">＊ 지문</button>
@@ -176,7 +176,47 @@
       <div class="editor-split">
         <textarea id="logInputBig" class="editor-split__edit" spellcheck="false"
           placeholder="여기에 롤플레이 로그를 붙여넣고 편하게 편집하세요..."></textarea>
-        <div class="blocks" id="blockEditor" hidden></div>
+
+        <div class="rich-pane" id="richPane" hidden>
+          <div class="rtoolbar" id="rtoolbar">
+            <button type="button" class="rtb-btn rtb-btn--ghost" data-cmd="seed" title="왼쪽 텍스트 불러오기">↻ 불러오기</button>
+            <span class="rtb-sep"></span>
+            <select class="rtb-sel" data-cmd="fontName" title="글꼴">
+              <option value="" selected disabled>글꼴</option>
+              <option value="'KoPubWorld Batang', serif">KoPub 바탕</option>
+              <option value="'Pretendard Variable','Pretendard',sans-serif">Pretendard</option>
+              <option value="'Nanum Myeongjo', serif">나눔명조</option>
+              <option value="'Noto Serif KR', serif">본명조</option>
+            </select>
+            <select class="rtb-sel" data-cmd="fontSize" title="글자 크기">
+              <option value="" selected disabled>크기</option>
+              <option value="12">12</option>
+              <option value="14">14</option>
+              <option value="16">16</option>
+              <option value="18">18</option>
+              <option value="20">20</option>
+              <option value="24">24</option>
+              <option value="28">28</option>
+              <option value="32">32</option>
+            </select>
+            <span class="rtb-sep"></span>
+            <button type="button" class="rtb-btn" data-cmd="bold" title="굵게"><b>B</b></button>
+            <button type="button" class="rtb-btn" data-cmd="italic" title="기울임"><i>I</i></button>
+            <button type="button" class="rtb-btn" data-cmd="underline" title="밑줄"><u>U</u></button>
+            <button type="button" class="rtb-btn" data-cmd="strikeThrough" title="취소선"><s>S</s></button>
+            <span class="rtb-sep"></span>
+            <label class="rtb-color" title="글자색">A<input type="color" data-cmd="foreColor" value="#1a1a1a" /></label>
+            <label class="rtb-color" title="형광펜">✎<input type="color" data-cmd="hiliteColor" value="#fff2a8" /></label>
+            <span class="rtb-sep"></span>
+            <button type="button" class="rtb-btn" data-cmd="justifyLeft" title="왼쪽 정렬">⯇</button>
+            <button type="button" class="rtb-btn" data-cmd="justifyCenter" title="가운데 정렬">≡</button>
+            <button type="button" class="rtb-btn" data-cmd="justifyRight" title="오른쪽 정렬">⯈</button>
+            <span class="rtb-sep"></span>
+            <button type="button" class="rtb-btn" data-cmd="removeFormat" title="서식 지우기">Tx</button>
+          </div>
+          <div class="rich" id="richDoc" contenteditable="true" spellcheck="false"></div>
+        </div>
+
         <div class="editor-split__preview" id="editorPreviewSlot"></div>
       </div>
     </div>
