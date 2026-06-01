@@ -75,15 +75,15 @@
         <div class="field">
           <span class="field__label">지문 표현 방식</span>
           <div class="seg" id="narrationStyle">
-            <label class="seg__opt"><input type="radio" name="narr" value="italic" checked /><span>기울임</span></label>
-            <label class="seg__opt"><input type="radio" name="narr" value="plain" /><span>일반 문장</span></label>
+            <label class="seg__opt"><input type="radio" name="narr" value="plain" checked /><span>일반 문장</span></label>
+            <label class="seg__opt"><input type="radio" name="narr" value="italic" /><span>기울임</span></label>
             <label class="seg__opt"><input type="radio" name="narr" value="muted" /><span>흐리게</span></label>
           </div>
         </div>
 
         <label class="field field--check">
-          <input id="dropcap" type="checkbox" checked />
-          <span>첫 글자 장식(드롭캡)</span>
+          <input id="dropcap" type="checkbox" />
+          <span>첫 문단 첫 글자 키우기(드롭캡)</span>
         </label>
 
         <label class="field field--check">
@@ -102,7 +102,7 @@
 
     <!-- ===== 오른쪽: 책 미리보기 ===== -->
     <section class="preview" aria-label="미리보기">
-      <div id="book" class="book book--a5">
+      <div id="book" class="book size-a5">
         <!-- JS가 채움 -->
       </div>
     </section>
