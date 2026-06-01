@@ -6,15 +6,19 @@
   <title>회지 메이커 · 롤플레이 로그를 소설책으로</title>
   <meta name="description" content="AI 챗 롤플레이 로그를 소설책/회지 형식으로 정리하고 PDF로 저장합니다." />
 
-  <!-- 한국어 세리프 + 산세리프 폰트 -->
+  <!-- Pretendard (UI/산세리프) -->
+  <link rel="stylesheet" as="style" crossorigin
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  <!-- KoPubWorld 바탕 (출판용 명조) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-kopubworld@1.0/batang.min.css" />
+  <!-- 보조 한글 세리프 옵션 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&family=Nanum+Myeongjo:wght@400;700;800&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- ===== 상단 바 (인쇄 시 숨김) ===== -->
   <header class="topbar no-print">
     <div class="topbar__brand">
       <span class="topbar__logo">❦</span>
@@ -28,7 +32,7 @@
   </header>
 
   <main class="layout">
-    <!-- ===== 왼쪽: 입력 / 설정 패널 ===== -->
+    <!-- ===== 설정 / 편집 패널 ===== -->
     <section class="panel no-print" aria-label="설정">
       <div class="panel__scroll">
         <h2 class="panel__heading">책 정보</h2>
@@ -37,7 +41,6 @@
           <span class="field__label">제목</span>
           <input id="bookTitle" class="field__input" type="text" placeholder="예) 비 오는 날의 약속" />
         </label>
-
         <label class="field">
           <span class="field__label">부제 / 저자 (선택)</span>
           <input id="bookAuthor" class="field__input" type="text" placeholder="예) written by ___" />
@@ -65,10 +68,10 @@
         <label class="field">
           <span class="field__label">본문 글꼴</span>
           <select id="fontFamily" class="field__input">
-            <option value="'Nanum Myeongjo', serif" selected>나눔명조 (고전적인 책)</option>
-            <option value="'Noto Serif KR', serif">본명조 (단정한 세리프)</option>
-            <option value="'Gowun Batang', serif">고운바탕 (부드러운 느낌)</option>
-            <option value="'Noto Sans KR', sans-serif">본고딕 (산뜻한 고딕)</option>
+            <option value="'KoPubWorld Batang', serif" selected>KoPubWorld 바탕 (출판 명조)</option>
+            <option value="'Pretendard Variable', 'Pretendard', sans-serif">Pretendard (산세리프)</option>
+            <option value="'Nanum Myeongjo', serif">나눔명조</option>
+            <option value="'Noto Serif KR', serif">본명조</option>
           </select>
         </label>
 
@@ -85,25 +88,40 @@
           <input id="dropcap" type="checkbox" />
           <span>첫 문단 첫 글자 키우기(드롭캡)</span>
         </label>
-
         <label class="field field--check">
           <input id="autoQuote" type="checkbox" checked />
           <span>따옴표 없는 대사에 자동으로 “ ” 붙이기</span>
         </label>
 
-        <h2 class="panel__heading">로그 붙여넣기</h2>
+        <h2 class="panel__heading">로그 편집</h2>
         <p class="panel__hint">
-          <code>*이렇게*</code> 는 행동지문, <code>"이렇게"</code> 또는 그냥 적은 줄은 대사로 인식해요.
+          <code>*지문*</code> · <code>"대사"</code> · 그냥 적은 줄 = 대사.
+          여러 문단을 <code>*</code> … <code>*</code> 로 감싸도 지문으로 인식해요.
         </p>
+        <div class="logtools">
+          <button type="button" class="chip" data-act="narr">＊ 지문</button>
+          <button type="button" class="chip" data-act="dia">“ 대사</button>
+          <button type="button" class="chip" data-act="scene">⸻ 장면 구분</button>
+        </div>
         <textarea id="logInput" class="logbox" spellcheck="false"
-          placeholder="여기에 롤플레이 로그를 붙여넣으세요...&#10;&#10;*그는 천천히 문을 열었다.*&#10;&quot;늦어서 미안.&quot;&#10;정말 기다렸어."></textarea>
+          placeholder="여기에 롤플레이 로그를 붙여넣으세요...&#10;&#10;*그는 천천히 문을 열었다.&#10;빗물이 어깨를 적셨다.*&#10;&quot;늦어서 미안.&quot;&#10;정말 기다렸어."></textarea>
       </div>
     </section>
 
-    <!-- ===== 오른쪽: 책 미리보기 ===== -->
+    <!-- ===== 미리보기 ===== -->
     <section class="preview" aria-label="미리보기">
-      <div id="book" class="book size-a5">
-        <!-- JS가 채움 -->
+      <div class="viewbar no-print">
+        <div class="seg seg--view" id="viewMode">
+          <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤</span></label>
+          <label class="seg__opt"><input type="radio" name="view" value="flip" /><span>넘기기</span></label>
+        </div>
+        <div class="viewbar__count" id="pageCount"></div>
+      </div>
+
+      <div class="stage" id="stage">
+        <button class="nav nav--prev no-print" id="prevBtn" type="button" aria-label="이전 쪽">‹</button>
+        <div id="book" class="book size-a5"></div>
+        <button class="nav nav--next no-print" id="nextBtn" type="button" aria-label="다음 쪽">›</button>
       </div>
     </section>
   </main>
