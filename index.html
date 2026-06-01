@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -123,11 +123,12 @@
           <span>따옴표 없는 대사에 자동으로 “ ” 붙이기</span>
         </label>
 
-        <h2 class="panel__heading">로그 편집</h2>
+        <h2 class="panel__heading">로그 불러오기</h2>
 
         <p class="panel__hint" id="simpleHint">
-          <code>*지문*</code> · <code>"대사"</code> · 그냥 적은 줄 = 대사.
-          장면 구분은 <code>***</code> 한 줄.
+          <code>*지문*</code> · <code>"대사"</code> · 그냥 적은 줄 = 대사 ·
+          장면 구분 <code>***</code>. 붙여넣고 <b>불러오기</b>를 누르면
+          오른쪽 미리보기에 정리돼요. 미리보기에서 <b>바로 편집</b>도 됩니다.
         </p>
         <div class="logtools" id="logtools">
           <button type="button" class="chip" data-act="narr">＊ 지문</button>
@@ -136,59 +137,17 @@
         </div>
         <textarea id="logInput" class="logbox" spellcheck="false"
           placeholder="여기에 롤플레이 로그를 붙여넣으세요...&#10;&#10;*그는 천천히 문을 열었다.&#10;빗물이 어깨를 적셨다.*&#10;&quot;늦어서 미안.&quot;&#10;정말 기다렸어."></textarea>
+        <button type="button" class="btn btn--block" id="importBtn">↳ 미리보기로 불러오기</button>
 
       </div>
     </section>
 
-    <!-- ===== 서식(워드) 편집 — 프리뷰 옆 큰 패널 ===== -->
-    <section class="editor-pane no-print" id="richPane" hidden aria-label="서식 편집">
-      <div class="editor-pane__bar">
-        <span class="editor-pane__title">서식 편집</span>
-        <div class="rtoolbar" id="rtoolbar">
-          <button type="button" class="rtb-btn rtb-btn--ghost" data-cmd="seed" title="왼쪽 텍스트 불러오기">↻ 불러오기</button>
-          <select class="rtb-sel" data-cmd="fontName" title="글꼴">
-            <option value="" selected disabled>글꼴</option>
-            <option value="'KoPubWorld Batang', serif">KoPub 바탕</option>
-            <option value="'Pretendard Variable','Pretendard',sans-serif">Pretendard</option>
-            <option value="'Nanum Myeongjo', serif">나눔명조</option>
-            <option value="'Noto Serif KR', serif">본명조</option>
-          </select>
-          <select class="rtb-sel" data-cmd="fontSize" title="글자 크기">
-            <option value="" selected disabled>크기</option>
-            <option value="12">12</option>
-            <option value="14">14</option>
-            <option value="16">16</option>
-            <option value="18">18</option>
-            <option value="20">20</option>
-            <option value="24">24</option>
-            <option value="28">28</option>
-            <option value="32">32</option>
-          </select>
-          <span class="rtb-sep"></span>
-          <button type="button" class="rtb-btn" data-cmd="bold" title="굵게"><b>B</b></button>
-          <button type="button" class="rtb-btn" data-cmd="italic" title="기울임"><i>I</i></button>
-          <button type="button" class="rtb-btn" data-cmd="underline" title="밑줄"><u>U</u></button>
-          <button type="button" class="rtb-btn" data-cmd="strikeThrough" title="취소선"><s>S</s></button>
-          <span class="rtb-sep"></span>
-          <label class="rtb-color" title="글자색">A<input type="color" data-cmd="foreColor" value="#1a1a1a" /></label>
-          <label class="rtb-color" title="형광펜">✎<input type="color" data-cmd="hiliteColor" value="#fff2a8" /></label>
-          <span class="rtb-sep"></span>
-          <button type="button" class="rtb-btn" data-cmd="justifyLeft" title="왼쪽 정렬">⯇</button>
-          <button type="button" class="rtb-btn" data-cmd="justifyCenter" title="가운데 정렬">≡</button>
-          <button type="button" class="rtb-btn" data-cmd="justifyRight" title="오른쪽 정렬">⯈</button>
-          <span class="rtb-sep"></span>
-          <button type="button" class="rtb-btn" data-cmd="removeFormat" title="서식 지우기">Tx</button>
-        </div>
-      </div>
-      <div class="rich" id="richDoc" contenteditable="true" spellcheck="false"></div>
-    </section>
-
-    <!-- ===== 미리보기 ===== -->
+    <!-- ===== 미리보기 (바로 편집) ===== -->
     <section class="preview" id="preview" aria-label="미리보기">
       <div class="viewbar no-print">
         <div class="viewbar__left">
           <div class="seg seg--view" id="viewMode">
-            <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤</span></label>
+            <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤·편집</span></label>
             <label class="seg__opt"><input type="radio" name="view" value="flip" /><span>넘기기</span></label>
           </div>
           <div class="seg seg--spread" id="spreadMode" hidden>
@@ -199,14 +158,56 @@
         <div class="viewbar__count" id="pageCount"></div>
       </div>
 
+      <!-- 서식 툴바: '서식 편집' 켜면 나타남 -->
+      <div class="rtoolbar no-print" id="rtoolbar" hidden>
+        <select class="rtb-sel" data-cmd="fontName" title="글꼴">
+          <option value="" selected disabled>글꼴</option>
+          <option value="'KoPubWorld Batang', serif">KoPub 바탕</option>
+          <option value="'Pretendard Variable','Pretendard',sans-serif">Pretendard</option>
+          <option value="'Nanum Myeongjo', serif">나눔명조</option>
+          <option value="'Noto Serif KR', serif">본명조</option>
+        </select>
+        <select class="rtb-sel" data-cmd="fontSize" title="글자 크기">
+          <option value="" selected disabled>크기</option>
+          <option value="12">12</option>
+          <option value="14">14</option>
+          <option value="16">16</option>
+          <option value="18">18</option>
+          <option value="20">20</option>
+          <option value="24">24</option>
+          <option value="28">28</option>
+          <option value="32">32</option>
+        </select>
+        <span class="rtb-sep"></span>
+        <button type="button" class="rtb-btn" data-cmd="bold" title="굵게"><b>B</b></button>
+        <button type="button" class="rtb-btn" data-cmd="italic" title="기울임"><i>I</i></button>
+        <button type="button" class="rtb-btn" data-cmd="underline" title="밑줄"><u>U</u></button>
+        <button type="button" class="rtb-btn" data-cmd="strikeThrough" title="취소선"><s>S</s></button>
+        <span class="rtb-sep"></span>
+        <label class="rtb-color" title="글자색">A<input type="color" data-cmd="foreColor" value="#1a1a1a" /></label>
+        <label class="rtb-color" title="형광펜">✎<input type="color" data-cmd="hiliteColor" value="#fff2a8" /></label>
+        <span class="rtb-sep"></span>
+        <button type="button" class="rtb-btn" data-cmd="justifyLeft" title="왼쪽 정렬">⯇</button>
+        <button type="button" class="rtb-btn" data-cmd="justifyCenter" title="가운데 정렬">≡</button>
+        <button type="button" class="rtb-btn" data-cmd="justifyRight" title="오른쪽 정렬">⯈</button>
+        <span class="rtb-sep"></span>
+        <button type="button" class="rtb-btn" data-cmd="removeFormat" title="서식 지우기">Tx</button>
+      </div>
+
       <div class="stage" id="stage">
         <button class="nav nav--prev no-print" id="prevBtn" type="button" aria-label="이전 쪽">‹</button>
+        <!-- 스크롤·편집 모드: 바로 편집하는 시트 -->
+        <div id="sheetWrap" class="sheetwrap size-a5">
+          <div id="richDoc" class="sheet body" contenteditable="true" spellcheck="false"
+            data-ph="여기에 바로 입력하거나, 왼쪽에 로그를 붙여넣고 ‘불러오기’를 누르세요."></div>
+        </div>
+        <!-- 넘기기 / PDF 모드: 페이지 분할된 책 -->
         <div id="book" class="book size-a5"></div>
         <button class="nav nav--next no-print" id="nextBtn" type="button" aria-label="다음 쪽">›</button>
       </div>
     </section>
   </main>
 
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

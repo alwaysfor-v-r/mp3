@@ -30,10 +30,13 @@ const els = {
   richToggle: $("#richToggle"),
   logtools: $("#logtools"),
   simpleHint: $("#simpleHint"),
-  richPane: $("#richPane"),
+  sheetWrap: $("#sheetWrap"),
   richDoc: $("#richDoc"),
   rtoolbar: $("#rtoolbar"),
+  importBtn: $("#importBtn"),
 };
+
+let sheetDirty = false; // 미리보기 시트를 직접 편집했는지
 
 const PAGE_SIZE = {
   a5: { cls: "size-a5", css: "148mm 210mm" },
@@ -405,7 +408,7 @@ function paginateRich(blocks, opts) {
   const overflow = () => st.body.scrollHeight > st.body.clientHeight + 1;
 
   if (!blocks.length) {
-    st.body.innerHTML = `<div class="empty">서식 편집에서 글을 작성하면<br/>여기에 책 내지처럼 정리돼요.</div>`;
+    st.body.innerHTML = `<div class="empty">미리보기에 바로 입력하거나<br/>왼쪽에 로그를 붙여넣고 ‘불러오기’를 누르세요.</div>`;
     st.body.parentElement.querySelector(".page__num").textContent = "";
     return;
   }
@@ -460,12 +463,17 @@ function renderBook() {
   const ps = els.paraSpace.value;
   const indent = els.indent.checked ? "indent-on" : "indent-off";
 
-  els.book.className = `book ${size.cls} fs-${els.fontSize.value} narration--${narr} ps-${ps} ${indent}`;
+  const mods = `${size.cls} fs-${els.fontSize.value} narration--${narr} ps-${ps} ${indent}`;
+  els.book.className = `book ${mods}`;
   els.book.style.setProperty("--book-font", els.fontFamily.value);
+
+  // 바로 편집 시트도 같은 판형/타이포 적용
+  els.sheetWrap.className = `sheetwrap ${mods}`;
+  els.sheetWrap.style.setProperty("--book-font", els.fontFamily.value);
+
   applyPrintPageSize(size.css);
 
-  if (useRich) paginateRich(getRichBlocks(), opts);
-  else paginate(parseLog(els.log.value), opts);
+  paginateRich(getRichBlocks(), opts);
   updateView();
 }
 
@@ -591,20 +599,22 @@ function richHasContent() {
 }
 function seedRichFromText() {
   const blocks = parseLog(els.log.value);
+  const autoQuote = els.autoQuote.checked;
   const html = blocks
     .map((b) => {
       if (b.type === "scene") return '<p class="scene">·  ·  ·</p>';
       const text = b.tokens
         .map((t) => {
           const inner = escapeHtml(t.text);
-          if (t.type === "narration") return inner;
-          return t.quoted ? `“${inner}”` : inner;
+          if (t.type === "narration") return `<span class="narration">${inner}</span>`;
+          const show = t.quoted || autoQuote;
+          return `<span class="dialogue">${show ? `“${inner}”` : inner}</span>`;
         })
         .join(" ");
       return `<p>${text || "<br>"}</p>`;
     })
     .join("");
-  els.richDoc.innerHTML = html || "<p><br></p>";
+  els.richDoc.innerHTML = html;
 }
 function execRich(cmd, val) {
   els.richDoc.focus();
@@ -626,21 +636,19 @@ function applyFontSizePx(px) {
   saveRange();
   schedule();
 }
+/* '서식 편집' = 툴바만 토글. 편집은 항상 미리보기 시트에서. */
 function setRichMode(on) {
   useRich = on;
-  els.richPane.hidden = !on;
-  els.logtools.hidden = on;
-  els.log.hidden = on;
-  els.simpleHint.hidden = on;
-  document.querySelector(".layout").classList.toggle("rich-on", on);
+  els.rtoolbar.hidden = !on;
   if (on) {
-    els.richDoc.style.fontFamily = els.fontFamily.value;
-    if (!richHasContent()) seedRichFromText();
-    try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch (e) {}
-    renderBook();
+    // 서식을 켜면 편집 화면(스크롤·편집)으로 전환
+    if (viewMode !== "scroll") {
+      viewMode = "scroll";
+      const r = document.querySelector('input[name="view"][value="scroll"]');
+      if (r) r.checked = true;
+      updateView();
+    }
     els.richDoc.focus();
-  } else {
-    renderBook();
   }
 }
 
@@ -648,8 +656,18 @@ function setRichMode(on) {
 let timer = null;
 const schedule = () => { clearTimeout(timer); timer = setTimeout(renderBook, 130); };
 
+function importToSheet() {
+  seedRichFromText();
+  sheetDirty = false;
+  renderBook();
+}
+
 function bind() {
-  [els.title, els.author, els.log].forEach((el) => el.addEventListener("input", schedule));
+  [els.title, els.author].forEach((el) => el.addEventListener("input", schedule));
+  // 왼쪽 로그: 시트를 직접 고치기 전이면 입력하는 대로 미리보기에 반영
+  els.log.addEventListener("input", () => {
+    if (!sheetDirty) { seedRichFromText(); schedule(); }
+  });
   [els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent].forEach((el) =>
     el.addEventListener("change", renderBook)
   );
@@ -679,11 +697,14 @@ function bind() {
   );
 
   els.richToggle.addEventListener("change", (e) => setRichMode(e.target.checked));
+  els.importBtn.addEventListener("click", () => { importToSheet(); els.richDoc.focus(); });
 
-  // 서식(워드) 편집 동작
-  els.richDoc.addEventListener("input", schedule);
+  // 미리보기 시트 = 바로 편집
+  els.richDoc.addEventListener("input", () => { sheetDirty = true; schedule(); });
   ["keyup", "mouseup"].forEach((ev) => els.richDoc.addEventListener(ev, saveRange));
   els.richDoc.addEventListener("blur", saveRange);
+
+  // 서식 툴바
   els.rtoolbar.querySelectorAll("[data-cmd]").forEach((el) => {
     const cmd = el.dataset.cmd;
     if (el.tagName === "SELECT") {
@@ -697,10 +718,7 @@ function bind() {
       el.addEventListener("input", () => execRich(cmd, el.value));
     } else {
       el.addEventListener("mousedown", (e) => { e.preventDefault(); saveRange(); });
-      el.addEventListener("click", () => {
-        if (cmd === "seed") { seedRichFromText(); renderBook(); els.richDoc.focus(); }
-        else execRich(cmd);
-      });
+      el.addEventListener("click", () => execRich(cmd));
     }
   });
 
@@ -708,15 +726,13 @@ function bind() {
   els.sampleBtn.addEventListener("click", () => {
     els.log.value = SAMPLE;
     if (!els.title.value) els.title.value = "비 오는 날의 약속";
-    els.richDoc.innerHTML = "";
-    els.richToggle.checked = false;
-    setRichMode(false);
+    importToSheet();
   });
   els.clearBtn.addEventListener("click", () => {
     els.log.value = "";
     els.richDoc.innerHTML = "";
-    els.richToggle.checked = false;
-    setRichMode(false);
+    sheetDirty = false;
+    renderBook();
     els.log.focus();
   });
 
@@ -732,5 +748,6 @@ function bind() {
 }
 
 bind();
+try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch (e) {}
 renderBook();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderBook);
