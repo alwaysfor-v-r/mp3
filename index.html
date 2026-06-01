@@ -85,6 +85,26 @@
           </div>
         </div>
 
+        <div class="field field--row">
+          <label class="field">
+            <span class="field__label">문단 간격</span>
+            <select id="paraSpace" class="field__input">
+              <option value="none" selected>없음(소설체)</option>
+              <option value="sm">좁게</option>
+              <option value="md">보통</option>
+              <option value="lg">넓게</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">첫 장 위 여백</span>
+            <select id="firstGap" class="field__input">
+              <option value="none" selected>없음</option>
+              <option value="md">보통</option>
+              <option value="lg">많이</option>
+            </select>
+          </label>
+        </div>
+
         <label class="field field--check">
           <input id="dropcap" type="checkbox" />
           <span>첫 문단 첫 글자 키우기(드롭캡)</span>
@@ -112,9 +132,15 @@
     <!-- ===== 미리보기 ===== -->
     <section class="preview" id="preview" aria-label="미리보기">
       <div class="viewbar no-print">
-        <div class="seg seg--view" id="viewMode">
-          <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤</span></label>
-          <label class="seg__opt"><input type="radio" name="view" value="flip" /><span>넘기기</span></label>
+        <div class="viewbar__left">
+          <div class="seg seg--view" id="viewMode">
+            <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤</span></label>
+            <label class="seg__opt"><input type="radio" name="view" value="flip" /><span>넘기기</span></label>
+          </div>
+          <div class="seg seg--spread" id="spreadMode" hidden>
+            <label class="seg__opt"><input type="radio" name="spread" value="single" checked /><span>단면</span></label>
+            <label class="seg__opt"><input type="radio" name="spread" value="spread" /><span>양면</span></label>
+          </div>
         </div>
         <div class="viewbar__count" id="pageCount"></div>
       </div>

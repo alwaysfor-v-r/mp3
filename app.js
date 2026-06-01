@@ -29,6 +29,9 @@ const els = {
   logBig: $("#logInputBig"),
   preview: $("#preview"),
   editorPreviewSlot: $("#editorPreviewSlot"),
+  paraSpace: $("#paraSpace"),
+  firstGap: $("#firstGap"),
+  spreadMode: $("#spreadMode"),
 };
 
 const PAGE_SIZE = {
@@ -52,6 +55,7 @@ const SAMPLE = `*비가 추적추적 내리는 골목, 그는 우산도 없이 �
 "응."`;
 
 let viewMode = "scroll";
+let spreadOn = false;
 let currentIndex = 0;
 let totalPages = 0;
 
@@ -237,6 +241,15 @@ function paginate(blocks, opts) {
     return;
   }
 
+  // 첫 장 위 여백 (챕터 시작 느낌)
+  if (opts.firstGap && opts.firstGap !== "none") {
+    const sp = document.createElement("div");
+    sp.setAttribute("aria-hidden", "true");
+    sp.style.height = opts.firstGap === "lg" ? "70mm" : "38mm";
+    sp.style.flex = "0 0 auto";
+    st.body.appendChild(sp);
+  }
+
   for (const b of blocks) {
     if (b.type === "scene") {
       const p = document.createElement("p");
@@ -298,14 +311,16 @@ function getOpts() {
     author: els.author.value.trim(),
     autoQuote: els.autoQuote.checked,
     dropcap: els.dropcap.checked,
+    firstGap: els.firstGap.value,
   };
 }
 function renderBook() {
   const opts = getOpts();
   const size = PAGE_SIZE[els.pageSize.value] || PAGE_SIZE.a5;
   const narr = document.querySelector('input[name="narr"]:checked')?.value || "plain";
+  const ps = els.paraSpace.value;
 
-  els.book.className = `book ${size.cls} fs-${els.fontSize.value} narration--${narr}`;
+  els.book.className = `book ${size.cls} fs-${els.fontSize.value} narration--${narr} ps-${ps}`;
   els.book.style.setProperty("--book-font", els.fontFamily.value);
   applyPrintPageSize(size.css);
 
@@ -330,24 +345,51 @@ function updateView() {
   if (currentIndex > totalPages - 1) currentIndex = totalPages - 1;
   if (currentIndex < 0) currentIndex = 0;
 
-  if (viewMode === "flip") {
-    els.stage.classList.add("is-flip");
-    els.book.classList.add("book--flip");
-    pages.forEach((p, i) => p.classList.toggle("is-current", i === currentIndex));
+  pages.forEach((p) => p.classList.remove("is-current", "is-left", "is-right"));
+  els.book.style.transform = "";
+  els.spreadMode.hidden = viewMode !== "flip";
+
+  if (viewMode !== "flip") {
+    els.stage.classList.remove("is-flip");
+    els.book.classList.remove("book--flip", "is-spread");
+    els.pageCount.textContent = totalPages ? `전체 ${totalPages}쪽` : "";
+    return;
+  }
+
+  els.stage.classList.add("is-flip");
+  els.book.classList.add("book--flip");
+
+  if (spreadOn && totalPages > 0) {
+    els.book.classList.add("is-spread");
+    pages[currentIndex] && pages[currentIndex].classList.add("is-left");
+    pages[currentIndex + 1] && pages[currentIndex + 1].classList.add("is-right");
+    scaleSpread(pages[currentIndex] || pages[0]);
+    const right = Math.min(currentIndex + 2, totalPages);
+    els.pageCount.textContent = `${currentIndex + 1}–${right} / ${totalPages}`;
+    els.prevBtn.disabled = currentIndex <= 0;
+    els.nextBtn.disabled = currentIndex + 2 >= totalPages;
+  } else {
+    els.book.classList.remove("is-spread");
+    pages[currentIndex] && pages[currentIndex].classList.add("is-current");
     els.pageCount.textContent = totalPages ? `${currentIndex + 1} / ${totalPages}` : "";
     els.prevBtn.disabled = currentIndex <= 0;
     els.nextBtn.disabled = currentIndex >= totalPages - 1;
-  } else {
-    els.stage.classList.remove("is-flip");
-    els.book.classList.remove("book--flip");
-    pages.forEach((p) => p.classList.remove("is-current"));
-    els.pageCount.textContent = totalPages ? `전체 ${totalPages}쪽` : "";
   }
 }
+function scaleSpread(sample) {
+  if (!sample) return;
+  const pageW = sample.getBoundingClientRect().width;
+  if (!pageW) return;
+  const avail = els.stage.clientWidth - 40;
+  const scale = Math.min(1, avail / (pageW * 2));
+  els.book.style.transformOrigin = "top center";
+  els.book.style.transform = scale < 0.999 ? `scale(${scale})` : "";
+}
 function go(delta) {
-  currentIndex += delta;
+  const step = (viewMode === "flip" && spreadOn) ? 2 : 1;
+  currentIndex += delta * step;
   updateView();
-  const cur = els.book.querySelector(".page.is-current");
+  const cur = els.book.querySelector(".page.is-current, .page.is-left");
   if (cur) cur.scrollIntoView({ block: "nearest" });
 }
 
@@ -417,7 +459,7 @@ const schedule = () => { clearTimeout(timer); timer = setTimeout(renderBook, 130
 
 function bind() {
   [els.title, els.author, els.log].forEach((el) => el.addEventListener("input", schedule));
-  [els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote].forEach((el) =>
+  [els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap].forEach((el) =>
     el.addEventListener("change", renderBook)
   );
   document.querySelectorAll('input[name="narr"]').forEach((r) => r.addEventListener("change", renderBook));
@@ -425,8 +467,16 @@ function bind() {
   document.querySelectorAll('input[name="view"]').forEach((r) =>
     r.addEventListener("change", (e) => { viewMode = e.target.value; updateView(); })
   );
+  document.querySelectorAll('input[name="spread"]').forEach((r) =>
+    r.addEventListener("change", (e) => {
+      spreadOn = e.target.value === "spread";
+      if (spreadOn && currentIndex % 2 === 1) currentIndex -= 1; // 짝수에서 시작
+      updateView();
+    })
+  );
   els.prevBtn.addEventListener("click", () => go(-1));
   els.nextBtn.addEventListener("click", () => go(1));
+  window.addEventListener("resize", () => { if (viewMode === "flip" && spreadOn) updateView(); });
 
   document.querySelectorAll(".chip[data-act]").forEach((btn) =>
     btn.addEventListener("click", () => {
