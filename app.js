@@ -23,17 +23,13 @@ const els = {
   pageCount: $("#pageCount"),
   prevBtn: $("#prevBtn"),
   nextBtn: $("#nextBtn"),
-  editBtn: $("#editBtn"),
-  editorModal: $("#editorModal"),
-  editorClose: $("#editorClose"),
-  logBig: $("#logInputBig"),
-  preview: $("#preview"),
-  editorPreviewSlot: $("#editorPreviewSlot"),
   paraSpace: $("#paraSpace"),
   firstGap: $("#firstGap"),
   spreadMode: $("#spreadMode"),
   indent: $("#indent"),
-  bigTools: $("#bigTools"),
+  richToggle: $("#richToggle"),
+  logtools: $("#logtools"),
+  simpleHint: $("#simpleHint"),
   richPane: $("#richPane"),
   richDoc: $("#richDoc"),
   rtoolbar: $("#rtoolbar"),
@@ -64,7 +60,6 @@ let spreadOn = false;
 let currentIndex = 0;
 let totalPages = 0;
 let useRich = false;
-let editorMode = "text";
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -118,12 +113,9 @@ function parseLog(raw) {
   };
 
   const lines = text.split("\n");
-  let blankRun = 0;
 
   for (const line of lines) {
-    if (line.trim() === "") { blankRun++; continue; }
-    if (blankRun >= 2) pushScene();
-    blankRun = 0;
+    if (line.trim() === "") continue;
     if (line.trim() === SCENE) { pushScene(); continue; }
 
     const parts = line.split(new RegExp(`(${NARR_OPEN}\\d+${NARR_CLOSE})`));
@@ -168,58 +160,6 @@ function parseLog(raw) {
   while (blocks.length && blocks[0].type === "scene") blocks.shift();
   while (blocks.length && blocks[blocks.length - 1].type === "scene") blocks.pop();
   return blocks;
-}
-
-/* ---------- 블록 편집용: 원문을 블록 단위로 쪼개기 ---------- */
-function splitBlocks(raw) {
-  let text = (raw || "").replace(/\r\n/g, "\n");
-  text = text.split("\n").map((l) => (isDivider(l) ? SCENE : l)).join("\n");
-
-  const narrs = [];
-  text = text.replace(/\*([\s\S]+?)\*/g, (_, inner) => {
-    const i = narrs.push(inner) - 1;
-    return `${NARR_OPEN}${i}${NARR_CLOSE}`;
-  });
-
-  const blocks = [];
-  const pushScene = () => {
-    if (blocks.length && blocks[blocks.length - 1].type !== "scene") blocks.push({ type: "scene" });
-  };
-
-  const lines = text.split("\n");
-  let blankRun = 0;
-  for (const line of lines) {
-    if (line.trim() === "") { blankRun++; continue; }
-    if (blankRun >= 2) pushScene();
-    blankRun = 0;
-    if (line.trim() === SCENE) { pushScene(); continue; }
-
-    const parts = line.split(new RegExp(`(${NARR_OPEN}\\d+${NARR_CLOSE})`));
-    for (const part of parts) {
-      const mm = new RegExp(`^${NARR_OPEN}(\\d+)${NARR_CLOSE}$`).exec(part);
-      if (mm) {
-        const inner = narrs[+mm[1]] || "";
-        inner.split(/\n+/).map((s) => s.trim()).filter(Boolean).forEach((para) => {
-          blocks.push({ type: "narration", text: para });
-        });
-      } else if (part.trim()) {
-        blocks.push({ type: "dialogue", text: part.trim() });
-      }
-    }
-  }
-
-  while (blocks.length && blocks[0].type === "scene") blocks.shift();
-  while (blocks.length && blocks[blocks.length - 1].type === "scene") blocks.pop();
-  return blocks;
-}
-function blocksToText(blocks) {
-  return blocks
-    .map((b) => {
-      if (b.type === "scene") return "***";
-      if (b.type === "narration") return "*" + (b.text || "").trim() + "*";
-      return (b.text || "").trim();
-    })
-    .join("\n");
 }
 
 /* ---------- 토큰 → HTML / 단어 배열 ---------- */
@@ -686,51 +626,21 @@ function applyFontSizePx(px) {
   saveRange();
   schedule();
 }
-function setEditorMode(mode) {
-  editorMode = mode;
-  const rich = mode === "rich";
-  els.richPane.hidden = !rich;
-  els.logBig.hidden = rich;
-  els.bigTools.style.visibility = rich ? "hidden" : "visible";
-  if (rich) {
-    useRich = true;
+function setRichMode(on) {
+  useRich = on;
+  els.richPane.hidden = !on;
+  els.logtools.hidden = on;
+  els.log.hidden = on;
+  els.simpleHint.hidden = on;
+  if (on) {
     els.richDoc.style.fontFamily = els.fontFamily.value;
     if (!richHasContent()) seedRichFromText();
     try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch (e) {}
     renderBook();
     els.richDoc.focus();
   } else {
-    useRich = false;
     renderBook();
   }
-}
-
-/* 큰 편집 화면 (좌: 편집 / 우: 실시간 미리보기) */
-let previewHome = null;
-function openEditor() {
-  if (!previewHome) {
-    previewHome = { parent: els.preview.parentNode, next: els.preview.nextSibling };
-  }
-  els.editorPreviewSlot.appendChild(els.preview); // 미리보기를 모달로 이동
-  els.logBig.value = els.log.value;
-  const mode = useRich ? "rich" : "text";
-  const radio = document.querySelector(`input[name="emode"][value="${mode}"]`);
-  if (radio) radio.checked = true;
-  setEditorMode(mode);
-  els.editorModal.classList.add("open");
-  els.editorModal.setAttribute("aria-hidden", "false");
-  if (mode === "text") {
-    els.logBig.focus();
-    const len = els.logBig.value.length;
-    els.logBig.setSelectionRange(len, len);
-  }
-}
-function closeEditor() {
-  els.editorModal.classList.remove("open");
-  els.editorModal.setAttribute("aria-hidden", "true");
-  if (previewHome) previewHome.parent.insertBefore(els.preview, previewHome.next); // 원위치
-  if (!useRich) els.log.value = els.logBig.value;
-  renderBook();
 }
 
 /* ---------- 이벤트 ---------- */
@@ -767,14 +677,7 @@ function bind() {
     })
   );
 
-  // 큰 편집 화면
-  els.editBtn.addEventListener("click", openEditor);
-  els.editorClose.addEventListener("click", closeEditor);
-  els.editorModal.addEventListener("mousedown", (e) => { if (e.target === els.editorModal) closeEditor(); });
-  els.logBig.addEventListener("input", () => { els.log.value = els.logBig.value; schedule(); });
-  document.querySelectorAll('input[name="emode"]').forEach((r) =>
-    r.addEventListener("change", (e) => setEditorMode(e.target.value))
-  );
+  els.richToggle.addEventListener("change", (e) => setRichMode(e.target.checked));
 
   // 서식(워드) 편집 동작
   els.richDoc.addEventListener("input", schedule);
@@ -799,42 +702,28 @@ function bind() {
       });
     }
   });
-  document.querySelectorAll(".chip[data-bact]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      const act = btn.dataset.bact;
-      if (act === "narr") wrapIn(els.logBig, "*", "*", "지문을 입력");
-      else if (act === "dia") wrapIn(els.logBig, '"', '"', "대사를 입력");
-      else if (act === "scene") sceneIn(els.logBig);
-      els.log.value = els.logBig.value;
-      schedule();
-    })
-  );
 
   els.pdfBtn.addEventListener("click", saveAsPdf);
   els.sampleBtn.addEventListener("click", () => {
     els.log.value = SAMPLE;
     if (!els.title.value) els.title.value = "비 오는 날의 약속";
-    useRich = false;
     els.richDoc.innerHTML = "";
-    const tRadio = document.querySelector('input[name="emode"][value="text"]');
-    if (tRadio) tRadio.checked = true;
-    renderBook();
+    els.richToggle.checked = false;
+    setRichMode(false);
   });
   els.clearBtn.addEventListener("click", () => {
     els.log.value = "";
-    useRich = false;
     els.richDoc.innerHTML = "";
-    const tRadio = document.querySelector('input[name="emode"][value="text"]');
-    if (tRadio) tRadio.checked = true;
-    renderBook();
+    els.richToggle.checked = false;
+    setRichMode(false);
     els.log.focus();
   });
 
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && els.editorModal.classList.contains("open")) { closeEditor(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") { e.preventDefault(); saveAsPdf(); return; }
-    if (viewMode === "flip" && !els.editorModal.classList.contains("open") &&
-        document.activeElement !== els.log) {
+    const typing = document.activeElement === els.log ||
+      document.activeElement === els.richDoc || els.richDoc.contains(document.activeElement);
+    if (viewMode === "flip" && !typing) {
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); go(1); }
       else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); go(-1); }
     }

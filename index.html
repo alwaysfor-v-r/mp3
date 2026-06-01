@@ -25,7 +25,6 @@
       <span class="topbar__title">회지 메이커</span>
     </div>
     <div class="topbar__actions">
-      <button id="editBtn" class="btn btn--ghost" type="button">✎ 크게 편집</button>
       <button id="sampleBtn" class="btn btn--ghost" type="button">예시 넣기</button>
       <button id="clearBtn" class="btn btn--ghost" type="button">비우기</button>
       <button id="pdfBtn" class="btn btn--primary" type="button">PDF로 저장</button>
@@ -118,69 +117,30 @@
           <span>따옴표 없는 대사에 자동으로 “ ” 붙이기</span>
         </label>
 
-        <h2 class="panel__heading">로그 편집</h2>
-        <p class="panel__hint">
+        <div class="logedit-bar">
+          <h2 class="panel__heading panel__heading--inline">로그 편집</h2>
+          <label class="toggle" title="서식 편집 켜기/끄기">
+            <input type="checkbox" id="richToggle" />
+            <span class="toggle__track"><span class="toggle__dot"></span></span>
+            <span class="toggle__label">서식</span>
+          </label>
+        </div>
+
+        <p class="panel__hint" id="simpleHint">
           <code>*지문*</code> · <code>"대사"</code> · 그냥 적은 줄 = 대사.
-          여러 문단을 <code>*</code> … <code>*</code> 로 감싸도 지문으로 인식해요.
+          장면 구분은 <code>***</code> 한 줄.
         </p>
-        <div class="logtools">
+        <div class="logtools" id="logtools">
           <button type="button" class="chip" data-act="narr">＊ 지문</button>
           <button type="button" class="chip" data-act="dia">“ 대사</button>
           <button type="button" class="chip" data-act="scene">⸻ 장면 구분</button>
         </div>
         <textarea id="logInput" class="logbox" spellcheck="false"
           placeholder="여기에 롤플레이 로그를 붙여넣으세요...&#10;&#10;*그는 천천히 문을 열었다.&#10;빗물이 어깨를 적셨다.*&#10;&quot;늦어서 미안.&quot;&#10;정말 기다렸어."></textarea>
-      </div>
-    </section>
-
-    <!-- ===== 미리보기 ===== -->
-    <section class="preview" id="preview" aria-label="미리보기">
-      <div class="viewbar no-print">
-        <div class="viewbar__left">
-          <div class="seg seg--view" id="viewMode">
-            <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤</span></label>
-            <label class="seg__opt"><input type="radio" name="view" value="flip" /><span>넘기기</span></label>
-          </div>
-          <div class="seg seg--spread" id="spreadMode" hidden>
-            <label class="seg__opt"><input type="radio" name="spread" value="single" checked /><span>단면</span></label>
-            <label class="seg__opt"><input type="radio" name="spread" value="spread" /><span>양면</span></label>
-          </div>
-        </div>
-        <div class="viewbar__count" id="pageCount"></div>
-      </div>
-
-      <div class="stage" id="stage">
-        <button class="nav nav--prev no-print" id="prevBtn" type="button" aria-label="이전 쪽">‹</button>
-        <div id="book" class="book size-a5"></div>
-        <button class="nav nav--next no-print" id="nextBtn" type="button" aria-label="다음 쪽">›</button>
-      </div>
-    </section>
-  </main>
-
-  <!-- 큰 편집 화면 (좌: 편집 / 우: 실시간 미리보기) -->
-  <div class="editor-modal no-print" id="editorModal" aria-hidden="true">
-    <div class="editor-modal__panel">
-      <div class="editor-modal__bar">
-        <span class="editor-modal__title">로그 편집</span>
-        <div class="seg seg--mode" id="editorMode">
-          <label class="seg__opt"><input type="radio" name="emode" value="text" checked /><span>텍스트</span></label>
-          <label class="seg__opt"><input type="radio" name="emode" value="rich" /><span>서식(워드)</span></label>
-        </div>
-        <div class="logtools" id="bigTools">
-          <button type="button" class="chip" data-bact="narr">＊ 지문</button>
-          <button type="button" class="chip" data-bact="dia">“ 대사</button>
-          <button type="button" class="chip" data-bact="scene">⸻ 장면 구분</button>
-        </div>
-        <button class="btn btn--primary" id="editorClose" type="button">완료</button>
-      </div>
-      <div class="editor-split">
-        <textarea id="logInputBig" class="editor-split__edit" spellcheck="false"
-          placeholder="여기에 롤플레이 로그를 붙여넣고 편하게 편집하세요..."></textarea>
 
         <div class="rich-pane" id="richPane" hidden>
           <div class="rtoolbar" id="rtoolbar">
-            <button type="button" class="rtb-btn rtb-btn--ghost" data-cmd="seed" title="왼쪽 텍스트 불러오기">↻ 불러오기</button>
-            <span class="rtb-sep"></span>
+            <button type="button" class="rtb-btn rtb-btn--ghost" data-cmd="seed" title="위 텍스트 불러오기">↻</button>
             <select class="rtb-sel" data-cmd="fontName" title="글꼴">
               <option value="" selected disabled>글꼴</option>
               <option value="'KoPubWorld Batang', serif">KoPub 바탕</option>
@@ -216,11 +176,32 @@
           </div>
           <div class="rich" id="richDoc" contenteditable="true" spellcheck="false"></div>
         </div>
-
-        <div class="editor-split__preview" id="editorPreviewSlot"></div>
       </div>
-    </div>
-  </div>
+    </section>
+
+    <!-- ===== 미리보기 ===== -->
+    <section class="preview" id="preview" aria-label="미리보기">
+      <div class="viewbar no-print">
+        <div class="viewbar__left">
+          <div class="seg seg--view" id="viewMode">
+            <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤</span></label>
+            <label class="seg__opt"><input type="radio" name="view" value="flip" /><span>넘기기</span></label>
+          </div>
+          <div class="seg seg--spread" id="spreadMode" hidden>
+            <label class="seg__opt"><input type="radio" name="spread" value="single" checked /><span>단면</span></label>
+            <label class="seg__opt"><input type="radio" name="spread" value="spread" /><span>양면</span></label>
+          </div>
+        </div>
+        <div class="viewbar__count" id="pageCount"></div>
+      </div>
+
+      <div class="stage" id="stage">
+        <button class="nav nav--prev no-print" id="prevBtn" type="button" aria-label="이전 쪽">‹</button>
+        <div id="book" class="book size-a5"></div>
+        <button class="nav nav--next no-print" id="nextBtn" type="button" aria-label="다음 쪽">›</button>
+      </div>
+    </section>
+  </main>
 
   <script src="app.js"></script>
 </body>
