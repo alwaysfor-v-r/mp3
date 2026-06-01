@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>회지 메이커 · 롤플레이 로그를 소설책으로</title>
+  <meta name="description" content="AI 챗 롤플레이 로그를 소설책/회지 형식으로 정리하고 PDF로 저장합니다." />
+
+  <!-- 한국어 세리프 + 산세리프 폰트 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&family=Nanum+Myeongjo:wght@400;700;800&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== 상단 바 (인쇄 시 숨김) ===== -->
+  <header class="topbar no-print">
+    <div class="topbar__brand">
+      <span class="topbar__logo">❦</span>
+      <span class="topbar__title">회지 메이커</span>
+    </div>
+    <div class="topbar__actions">
+      <button id="sampleBtn" class="btn btn--ghost" type="button">예시 넣기</button>
+      <button id="clearBtn" class="btn btn--ghost" type="button">비우기</button>
+      <button id="pdfBtn" class="btn btn--primary" type="button">PDF로 저장</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ===== 왼쪽: 입력 / 설정 패널 ===== -->
+    <section class="panel no-print" aria-label="설정">
+      <div class="panel__scroll">
+        <h2 class="panel__heading">책 정보</h2>
+
+        <label class="field">
+          <span class="field__label">제목</span>
+          <input id="bookTitle" class="field__input" type="text" placeholder="예) 비 오는 날의 약속" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">부제 / 저자 (선택)</span>
+          <input id="bookAuthor" class="field__input" type="text" placeholder="예) written by ___" />
+        </label>
+
+        <div class="field field--row">
+          <label class="field">
+            <span class="field__label">판형</span>
+            <select id="pageSize" class="field__input">
+              <option value="a5" selected>A5 (책 느낌)</option>
+              <option value="a4">A4</option>
+              <option value="b6">B6 (문고본)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">글씨 크기</span>
+            <select id="fontSize" class="field__input">
+              <option value="small">작게</option>
+              <option value="medium" selected>보통</option>
+              <option value="large">크게</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field__label">본문 글꼴</span>
+          <select id="fontFamily" class="field__input">
+            <option value="'Nanum Myeongjo', serif" selected>나눔명조 (고전적인 책)</option>
+            <option value="'Noto Serif KR', serif">본명조 (단정한 세리프)</option>
+            <option value="'Gowun Batang', serif">고운바탕 (부드러운 느낌)</option>
+            <option value="'Noto Sans KR', sans-serif">본고딕 (산뜻한 고딕)</option>
+          </select>
+        </label>
+
+        <div class="field">
+          <span class="field__label">지문 표현 방식</span>
+          <div class="seg" id="narrationStyle">
+            <label class="seg__opt"><input type="radio" name="narr" value="italic" checked /><span>기울임</span></label>
+            <label class="seg__opt"><input type="radio" name="narr" value="plain" /><span>일반 문장</span></label>
+            <label class="seg__opt"><input type="radio" name="narr" value="muted" /><span>흐리게</span></label>
+          </div>
+        </div>
+
+        <label class="field field--check">
+          <input id="dropcap" type="checkbox" checked />
+          <span>첫 글자 장식(드롭캡)</span>
+        </label>
+
+        <label class="field field--check">
+          <input id="autoQuote" type="checkbox" checked />
+          <span>따옴표 없는 대사에 자동으로 “ ” 붙이기</span>
+        </label>
+
+        <h2 class="panel__heading">로그 붙여넣기</h2>
+        <p class="panel__hint">
+          <code>*이렇게*</code> 는 행동지문, <code>"이렇게"</code> 또는 그냥 적은 줄은 대사로 인식해요.
+        </p>
+        <textarea id="logInput" class="logbox" spellcheck="false"
+          placeholder="여기에 롤플레이 로그를 붙여넣으세요...&#10;&#10;*그는 천천히 문을 열었다.*&#10;&quot;늦어서 미안.&quot;&#10;정말 기다렸어."></textarea>
+      </div>
+    </section>
+
+    <!-- ===== 오른쪽: 책 미리보기 ===== -->
+    <section class="preview" aria-label="미리보기">
+      <div id="book" class="book book--a5">
+        <!-- JS가 채움 -->
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
