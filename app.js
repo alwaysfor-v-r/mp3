@@ -123,6 +123,7 @@ let currentIndex = 0;
 let totalPages = 0;
 let useRich = false;
 let renderSeq = 0;
+let paginateRoot = null;
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -453,7 +454,8 @@ function makeColophonPage(opts) {
 }
 
 function appendFrontMatter(opts) {
-  const add = (p) => { if (p) els.book.appendChild(p); };
+  const root = paginateRoot || els.book;
+  const add = (p) => { if (p) root.appendChild(p); };
   if (opts.includeCover) add(makeCoverPage(opts));
   if (opts.includeTitleLeaf) add(makeTitleLeafPage(opts));
   if (opts.includeHalfTitle) add(makeHalfTitlePage(opts));
@@ -468,7 +470,8 @@ function appendFrontMatter(opts) {
 }
 
 function appendBackMatter(opts) {
-  const add = (p) => { if (p) els.book.appendChild(p); };
+  const root = paginateRoot || els.book;
+  const add = (p) => { if (p) root.appendChild(p); };
   if (opts.includeEpilogue) {
     if (opts.epilogueStyle === "html") {
       add(makeSectionHtmlPage("page--matter page--epilogue page--epilogue-html", opts.epilogueHtml, "epilogue"));
@@ -684,16 +687,17 @@ function fillBlock(body, blockEl, overflow) {
   return fillBlockWords(body, blockEl, overflow);
 }
 
-function paginateRich(blocks, opts) {
-  els.book.classList.remove("book--flip");
-  els.book.innerHTML = "";
+function paginateRich(blocks, opts, root) {
+  paginateRoot = root || els.book;
+  paginateRoot.classList.remove("book--flip");
+  paginateRoot.innerHTML = "";
   appendFrontMatter(opts);
 
   const st = { pageNum: 0, body: null };
   const newPage = () => {
     st.pageNum += 1;
     const { page, body } = makeContentPage(opts, st.pageNum);
-    els.book.appendChild(page);
+    paginateRoot.appendChild(page);
     st.body = body;
   };
   newPage();
@@ -869,13 +873,27 @@ function insertImageFile(file, forCover = false) {
   };
   r.readAsDataURL(file);
 }
+function clampPageIndex(i, max) {
+  let n = Number(i);
+  if (!Number.isFinite(n)) n = 0;
+  return Math.max(0, Math.min(max, n));
+}
+
+function alignSpreadLeft(i, max) {
+  let n = clampPageIndex(i, max);
+  if (viewMode === "flip" && spreadOn) n -= n % 2;
+  return n;
+}
+
 function captureViewAnchor() {
   const pages = [...els.book.querySelectorAll(".page")];
-  const page = pages[currentIndex];
+  const max = Math.max(0, pages.length - 1);
+  const idx = clampPageIndex(currentIndex, max);
+  const page = pages[idx];
   if (!page) return { idx: 0, mainIdx: -1, pageKey: null };
   const mains = [...els.book.querySelectorAll(".page--main")];
   const mainIdx = page.classList.contains("page--main") ? mains.indexOf(page) : -1;
-  return { idx: currentIndex, mainIdx, pageKey: page.dataset.pageKey || null };
+  return { idx, mainIdx, pageKey: page.dataset.pageKey || null };
 }
 
 function restoreViewAnchor(anchor) {
@@ -884,31 +902,36 @@ function restoreViewAnchor(anchor) {
     currentIndex = 0;
     return;
   }
+  const max = pages.length - 1;
   if (anchor.pageKey) {
     const byKey = pages.findIndex((p) => p.dataset.pageKey === anchor.pageKey);
     if (byKey >= 0) {
-      currentIndex = byKey;
-      if (viewMode === "flip" && spreadOn && currentIndex % 2 === 1) currentIndex -= 1;
+      currentIndex = alignSpreadLeft(byKey, max);
       return;
     }
   }
   if (anchor.mainIdx >= 0) {
     const mains = [...els.book.querySelectorAll(".page--main")];
     const page = mains[Math.min(anchor.mainIdx, Math.max(0, mains.length - 1))];
-    currentIndex = Math.max(0, pages.indexOf(page));
+    const at = pages.indexOf(page);
+    currentIndex = alignSpreadLeft(at >= 0 ? at : 0, max);
   } else {
-    currentIndex = Math.min(anchor.idx, pages.length - 1);
+    currentIndex = alignSpreadLeft(anchor.idx ?? 0, max);
   }
-  if (viewMode === "flip" && spreadOn && currentIndex % 2 === 1) currentIndex -= 1;
 }
 
 function syncFlipIndexFromTarget(target) {
-  if (viewMode !== "flip") return;
+  if (viewMode !== "flip") return false;
   const page = target?.closest?.(".page");
-  if (!page) return;
+  if (!page) return false;
   const pages = [...els.book.querySelectorAll(".page")];
   const i = pages.indexOf(page);
-  if (i >= 0) currentIndex = i;
+  if (i < 0) return false;
+  const max = pages.length - 1;
+  const next = spreadOn ? i - (i % 2) : i;
+  if (next === currentIndex) return false;
+  currentIndex = clampPageIndex(next, max);
+  return true;
 }
 
 function bookFontFamily() {
@@ -983,7 +1006,16 @@ function renderBookNow(anchor) {
 
   applyPrintPageSize(size.css);
 
-  paginateRich(getRichBlocks(), opts);
+  const tmp = document.createElement("div");
+  tmp.className = els.book.className;
+  tmp.style.cssText = "position:fixed;left:-10000px;top:0;visibility:hidden;pointer-events:none;";
+  tmp.style.setProperty("--book-font", els.fontFamily.value);
+  document.body.appendChild(tmp);
+  paginateRich(getRichBlocks(), opts, tmp);
+  els.book.replaceChildren(...tmp.children);
+  tmp.remove();
+  paginateRoot = null;
+
   restoreViewAnchor(anchor);
   updateView();
 }
@@ -1012,8 +1044,18 @@ function applyPrintPageSize(sizeCss) {
 function updateView() {
   const pages = [...els.book.querySelectorAll(".page")];
   totalPages = pages.length;
-  if (currentIndex > totalPages - 1) currentIndex = totalPages - 1;
-  if (currentIndex < 0) currentIndex = 0;
+  const max = Math.max(0, totalPages - 1);
+
+  if (viewMode === "flip" && !totalPages) {
+    els.stage.classList.add("is-flip");
+    els.book.classList.add("book--flip");
+    els.pageCount.textContent = "준비 중…";
+    els.prevBtn.disabled = true;
+    els.nextBtn.disabled = true;
+    return;
+  }
+
+  currentIndex = alignSpreadLeft(currentIndex, max);
 
   pages.forEach((p) => p.classList.remove("is-current", "is-left", "is-right"));
   els.book.style.transform = "";
@@ -1129,8 +1171,7 @@ function applyPageEditability() {
       if (e.key === "Backspace") handleEditableBackspace(body, matterKinds, e);
     });
     body.addEventListener("focus", () => {
-      syncFlipIndexFromTarget(body);
-      updateView();
+      if (syncFlipIndexFromTarget(body)) updateView();
     });
     body.addEventListener("blur", () => {
       clearTimeout(repaginateTimer);
@@ -1163,9 +1204,7 @@ function go(delta) {
   const pages = els.book.querySelectorAll(".page");
   const max = Math.max(0, pages.length - 1);
   const step = (viewMode === "flip" && spreadOn) ? 2 : 1;
-  currentIndex += delta * step;
-  if (currentIndex > max) currentIndex = max;
-  if (currentIndex < 0) currentIndex = 0;
+  currentIndex = alignSpreadLeft(clampPageIndex(currentIndex, max) + delta * step, max);
   updateView();
   if (viewMode === "flip") els.stage.scrollTop = 0;
 }
@@ -1285,12 +1324,16 @@ function bind() {
   document.querySelectorAll('input[name="narr"]').forEach((r) => r.addEventListener("change", renderBook));
 
   document.querySelectorAll('input[name="view"]').forEach((r) =>
-    r.addEventListener("change", (e) => { viewMode = e.target.value; updateView(); })
+    r.addEventListener("change", (e) => {
+      viewMode = e.target.value;
+      updateView();
+    })
   );
   document.querySelectorAll('input[name="spread"]').forEach((r) =>
     r.addEventListener("change", (e) => {
       spreadOn = e.target.value === "spread";
-      if (spreadOn && currentIndex % 2 === 1) currentIndex -= 1; // 짝수에서 시작
+      const max = Math.max(0, els.book.querySelectorAll(".page").length - 1);
+      currentIndex = alignSpreadLeft(currentIndex, max);
       updateView();
     })
   );
@@ -1301,8 +1344,8 @@ function bind() {
   els.nextBtn.addEventListener("click", () => go(1));
   els.book.addEventListener("click", (e) => {
     if (viewMode !== "flip") return;
-    syncFlipIndexFromTarget(e.target);
-    updateView();
+    if (e.target.closest(".nav")) return;
+    if (syncFlipIndexFromTarget(e.target)) updateView();
   });
   window.addEventListener("resize", () => { if (viewMode === "flip" && spreadOn) updateView(); });
 
