@@ -67,6 +67,12 @@ html, body {
 .panel__heading:first-child { margin-top: 0; }
 .panel__hint { font-size: 12px; color: var(--text-soft); margin: 0 0 10px; line-height: 1.7; }
 .panel__hint code { background: #f0f0ee; padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+.panel__hint--compact { font-size: 11.5px; margin-bottom: 10px; }
+.matter-detail { margin: 0 0 14px 12px; padding-left: 10px; border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.matter-detail[hidden] { display: none; }
+.preface-box, .code-box { min-height: 72px; resize: vertical; line-height: 1.75; font-size: 13.5px; }
+.code-box { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+.btn--sm { font-size: 12px; padding: 6px 10px; align-self: flex-start; }
 
 .field, .panel__heading, .panel__hint, .logtools { flex: 0 0 auto; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 13px; }
@@ -215,11 +221,71 @@ html, body {
 .page--title-ornate .title-wrap__orn { font-size: 14pt; color: var(--book-soft); letter-spacing: .5em; margin-bottom: 8mm; }
 .page--title-ornate .title-wrap__orn--foot { margin: 8mm 0 0; }
 
-/* 서문 */
-.page--preface .page__head { font-style: italic; }
-.page--preface .preface-body p { margin: 0 0 .85em; text-indent: 0; text-align: justify; }
-.page--preface .preface-body p:last-child { margin-bottom: 0; }
-.page--preface .page__num { visibility: hidden; }
+/* 앞·뒤 장 공통 */
+.page--matter .page__head { font-style: italic; }
+.page--matter .matter-body p { margin: 0 0 .85em; text-indent: 0; text-align: justify; }
+.page--matter .matter-body p:last-child { margin-bottom: 0; }
+.page--matter .page__num { visibility: hidden; }
+
+/* 표지 */
+.page--cover {
+  padding: 0 !important; overflow: hidden; position: relative;
+  background-size: cover; background-position: center; background-color: #1a1a18;
+}
+.page--cover-text-classic,
+.page--cover-text-modern,
+.page--cover-text-night { padding: 20mm 18mm !important; display: flex; align-items: center; justify-content: center; }
+.page--cover-text-night { background: #1a1a18; color: #e8e4dc; }
+.cover-wrap { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.page--cover-image-band .cover-wrap { justify-content: flex-end; padding-bottom: 14mm; }
+.page--cover-image-band .cover-wrap__band {
+  width: 100%; padding: 10mm 8mm; background: rgba(255,255,255,.92); color: var(--book-ink);
+}
+.page--cover-text-night .cover-wrap__title { color: #e8e4dc; }
+.page--cover-text-night .cover-wrap__sub,
+.page--cover-text-night .cover-wrap__author { color: #9a958c; }
+.page--cover-text-modern .cover-wrap { font-family: var(--ui-font); }
+.cover-wrap__title { font-family: var(--book-font); font-weight: 600; font-size: 24pt; margin: 0; line-height: 1.35; }
+.cover-wrap__sub { margin: .4em 0 0; font-size: 11pt; opacity: .85; }
+.cover-wrap__author { margin-top: 1.2em; font-size: 10pt; letter-spacing: .08em; opacity: .75; }
+
+/* 표제지 (제목만) */
+.page--titleleaf { justify-content: center; align-items: center; text-align: center; }
+.page--titleleaf-lower .titleleaf-wrap { margin-top: 35%; }
+.page--titleleaf-minimal .titleleaf-wrap__title { font-weight: 400; font-size: 18pt; letter-spacing: .2em; }
+
+/* 약표제지 — 문학·모던 */
+.page--halftitle-literary .title-wrap { padding: 0 6mm; }
+.page--halftitle-literary .title-wrap__title { font-size: 20pt; font-weight: 400; letter-spacing: .06em; }
+.page--halftitle-modern .title-wrap { font-family: var(--ui-font); }
+.page--halftitle-modern .title-wrap__title { font-weight: 700; letter-spacing: -.02em; }
+
+/* 목차 */
+.page--toc .toc-list { list-style: none; margin: 0; padding: 0; }
+.page--toc .toc-list li {
+  display: flex; align-items: baseline; gap: .5em; margin-bottom: .55em;
+  font-size: 10.5pt; line-height: 1.5;
+}
+.page--toc .toc-list .toc-label { flex: 0 0 auto; }
+.page--toc .toc-list .toc-dots { flex: 1 1 auto; border-bottom: 1px dotted var(--book-soft); min-width: 1em; margin: 0 .25em; opacity: .5; }
+.page--toc .toc-list .toc-page { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--book-soft); }
+
+/* 간기면 */
+.page--colophon { text-align: center; font-size: 9.5pt; color: var(--book-soft); line-height: 1.85; }
+.page--colophon-bottom { justify-content: flex-end; align-items: center; }
+.page--colophon-bottom .colophon-wrap { margin-bottom: 18mm; width: 100%; }
+.page--colophon .colophon-wrap p { margin: 0 0 .5em; }
+
+/* 맞춤 HTML 페이지 */
+.page--custom { padding: 18mm 16mm !important; }
+.page--custom .custom-html { width: 100%; min-height: 100%; font-family: var(--book-font); font-size: 10.5pt; line-height: 1.8; }
+.page--custom .custom-html img { max-width: 100%; height: auto; display: block; margin: .6em auto; }
+.page--custom .custom-html h1, .page--custom .custom-html h2 { margin: 0 0 .6em; }
+
+/* 본문 이미지 */
+.body img, .page__body img { max-width: 100%; height: auto; display: block; margin: .5em auto; }
+.rtb-btn--file { cursor: pointer; margin: 0; }
+.rtb-btn--file input { display: none; }
 
 .empty { margin: auto; text-align: center; color: var(--book-soft); font-family: var(--book-font); font-size: 11pt; line-height: 1.9; }
 
@@ -334,10 +400,12 @@ html, body {
 /* 스크롤·편집: 본문 페이지에서 바로 입력 */
 .preface-box { min-height: 120px; resize: vertical; line-height: 1.75; font-size: 13.5px; }
 
-.stage:not(.is-flip) .page:not(.page--title) .page__body {
+.stage:not(.is-flip) .page--main .page__body,
+.stage:not(.is-flip) .page--matter .matter-body {
   cursor: text; outline: none;
 }
-.stage:not(.is-flip) .page:not(.page--title) .page__body:focus {
+.stage:not(.is-flip) .page--main .page__body:focus,
+.stage:not(.is-flip) .page--matter .matter-body:focus {
   box-shadow: inset 0 0 0 1px rgba(28, 28, 26, .12);
 }
 

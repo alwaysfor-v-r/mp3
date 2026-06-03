@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=19" />
+  <link rel="stylesheet" href="styles.css?v=20" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -52,20 +52,8 @@
           <input id="bookAuthor" class="field__input" type="text" placeholder="예) written by ___" />
         </label>
 
-        <h2 class="panel__heading">앞장</h2>
-
         <label class="field">
-          <span class="field__label">표지(제목) 페이지</span>
-          <select id="titleStyle" class="field__input">
-            <option value="classic" selected>클래식 — 가운데 정렬</option>
-            <option value="minimal">미니멀 — 위·아래 배치</option>
-            <option value="cover">표지형 — 큰 제목</option>
-            <option value="ornate">장식 — 소품 장식</option>
-            <option value="none">없음</option>
-          </select>
-        </label>
-        <label class="field">
-          <span class="field__label">부제 (선택)</span>
+          <span class="field__label">부제 (약표제지·표지용)</span>
           <input id="titleSubtitle" class="field__input" type="text" placeholder="예) 제1장 · 비" />
         </label>
         <label class="field">
@@ -73,14 +61,96 @@
           <input id="titleMeta" class="field__input" type="text" placeholder="예) 2026 · 1부" />
         </label>
 
-        <label class="field field--check">
-          <input id="includePreface" type="checkbox" />
-          <span>서문 페이지 넣기</span>
+        <h2 class="panel__heading">책 구성</h2>
+        <p class="panel__hint panel__hint--compact">
+          표지 → 표제지 → 약표제지 → 서문 → 목차 → <b>본문</b> → 참고 → 간기면
+        </p>
+
+        <label class="field field--check"><input id="includeCover" type="checkbox" checked /><span>① 표지</span></label>
+        <div class="matter-detail" id="coverDetail">
+          <label class="field">
+            <span class="field__label">표지 스타일</span>
+            <select id="coverStyle" class="field__input">
+              <option value="image-full" selected>사진 전면</option>
+              <option value="image-band">사진 + 제목 띠</option>
+              <option value="text-classic">글만 (클래식)</option>
+              <option value="text-modern">글만 (모던)</option>
+              <option value="text-night">글만 (다크)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">표지 사진</span>
+            <input id="coverImage" class="field__input" type="file" accept="image/*" />
+          </label>
+          <button type="button" class="btn btn--ghost btn--sm" id="clearCoverImage">표지 사진 제거</button>
+        </div>
+
+        <label class="field field--check"><input id="includeTitleLeaf" type="checkbox" checked /><span>② 표제지 (제목만)</span></label>
+        <div class="matter-detail" id="titleLeafDetail">
+          <select id="titleLeafStyle" class="field__input">
+            <option value="center" selected>가운데</option>
+            <option value="lower">아래쪽</option>
+            <option value="minimal">미니멀</option>
+          </select>
+        </div>
+
+        <label class="field field--check"><input id="includeHalfTitle" type="checkbox" checked /><span>③ 약표제지 (제목+부제+저자)</span></label>
+        <div class="matter-detail" id="halfTitleDetail">
+          <select id="halfTitleStyle" class="field__input">
+            <option value="classic" selected>클래식</option>
+            <option value="minimal">미니멀</option>
+            <option value="cover">표지형 (큰 제목)</option>
+            <option value="ornate">장식</option>
+            <option value="literary">문학 (세리프 여백)</option>
+            <option value="modern">모던 (산세리프)</option>
+            <option value="none">없음</option>
+          </select>
+        </div>
+
+        <label class="field field--check"><input id="includePreface" type="checkbox" /><span>④ 서문 (머리말·추천사 등)</span></label>
+        <div class="matter-detail" id="prefaceField" hidden>
+          <input id="prefaceLabel" class="field__input" type="text" value="서문" placeholder="머리말 제목" />
+          <textarea id="prefaceText" class="field__input preface-box" rows="5" spellcheck="false"
+            placeholder="서문 본문. 빈 줄로 문단 구분."></textarea>
+        </div>
+
+        <label class="field field--check"><input id="includeToc" type="checkbox" /><span>⑤ 목차</span></label>
+        <div class="matter-detail" id="tocField" hidden>
+          <textarea id="tocText" class="field__input preface-box" rows="5" spellcheck="false"
+            placeholder="한 줄에 한 항목&#10;제1장  비 오는 날·········· 3"></textarea>
+          <button type="button" class="btn btn--ghost btn--sm" id="tocFromBody">본문에서 목차 추출</button>
+        </div>
+
+        <h2 class="panel__heading">뒤장</h2>
+
+        <label class="field field--check"><input id="includeEpilogue" type="checkbox" /><span>⑥ 참고·색인·뒷말</span></label>
+        <div class="matter-detail" id="epilogueField" hidden>
+          <input id="epilogueLabel" class="field__input" type="text" value="참고" placeholder="페이지 제목" />
+          <textarea id="epilogueText" class="field__input preface-box" rows="4" spellcheck="false"></textarea>
+        </div>
+
+        <label class="field field--check"><input id="includeColophon" type="checkbox" /><span>⑦ 간기면 (발행·판권)</span></label>
+        <div class="matter-detail" id="colophonField" hidden>
+          <textarea id="colophonText" class="field__input preface-box" rows="4" spellcheck="false"
+            placeholder="발행일 · 인쇄 · 저작권 등"></textarea>
+          <select id="colophonStyle" class="field__input">
+            <option value="center" selected>가운데</option>
+            <option value="bottom">아래 정렬</option>
+          </select>
+        </div>
+
+        <h2 class="panel__heading">맞춤 페이지 (HTML)</h2>
+        <p class="panel__hint panel__hint--compact">
+          <code>p</code> <code>img</code> <code>h2</code> 등 사용. 여러 장은 줄에 <code>---</code> 만 넣어 구분.
+        </p>
+        <label class="field">
+          <span class="field__label">앞쪽 맞춤 HTML</span>
+          <textarea id="customFrontHtml" class="field__input code-box" rows="4" spellcheck="false"
+            placeholder="&lt;div style='text-align:center;padding-top:40mm'&gt;…&lt;/div&gt;"></textarea>
         </label>
-        <label class="field" id="prefaceField" hidden>
-          <span class="field__label">서문</span>
-          <textarea id="prefaceText" class="field__input preface-box" rows="7" spellcheck="false"
-            placeholder="서문을 입력하세요. 빈 줄로 문단을 나눕니다."></textarea>
+        <label class="field">
+          <span class="field__label">뒤쪽 맞춤 HTML</span>
+          <textarea id="customBackHtml" class="field__input code-box" rows="4" spellcheck="false"></textarea>
         </label>
 
         <h2 class="panel__heading">본문 서식</h2>
@@ -215,6 +285,10 @@
         <button type="button" class="rtb-btn" data-cmd="justifyRight" title="오른쪽 정렬">⯈</button>
         <span class="rtb-sep"></span>
         <button type="button" class="rtb-btn" data-cmd="removeFormat" title="서식 지우기">Tx</button>
+        <span class="rtb-sep"></span>
+        <label class="rtb-btn rtb-btn--file" title="이미지 삽입">🖼<input type="file" id="imgInsert" accept="image/*" hidden /></label>
+        <button type="button" class="rtb-btn" data-cmd="createLink" title="링크">🔗</button>
+        <button type="button" class="rtb-btn" data-cmd="insertHorizontalRule" title="구분선">―</button>
       </div>
 
       <div class="stage" id="stage">
@@ -230,6 +304,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

@@ -11,12 +11,35 @@ const els = {
   stage: $("#stage"),
   title: $("#bookTitle"),
   author: $("#bookAuthor"),
-  titleStyle: $("#titleStyle"),
   titleSubtitle: $("#titleSubtitle"),
   titleMeta: $("#titleMeta"),
+  includeCover: $("#includeCover"),
+  coverStyle: $("#coverStyle"),
+  coverImage: $("#coverImage"),
+  clearCoverImage: $("#clearCoverImage"),
+  includeTitleLeaf: $("#includeTitleLeaf"),
+  titleLeafStyle: $("#titleLeafStyle"),
+  includeHalfTitle: $("#includeHalfTitle"),
+  halfTitleStyle: $("#halfTitleStyle"),
   includePreface: $("#includePreface"),
+  prefaceLabel: $("#prefaceLabel"),
   prefaceText: $("#prefaceText"),
   prefaceField: $("#prefaceField"),
+  includeToc: $("#includeToc"),
+  tocText: $("#tocText"),
+  tocField: $("#tocField"),
+  tocFromBody: $("#tocFromBody"),
+  includeEpilogue: $("#includeEpilogue"),
+  epilogueLabel: $("#epilogueLabel"),
+  epilogueText: $("#epilogueText"),
+  epilogueField: $("#epilogueField"),
+  includeColophon: $("#includeColophon"),
+  colophonText: $("#colophonText"),
+  colophonStyle: $("#colophonStyle"),
+  colophonField: $("#colophonField"),
+  customFrontHtml: $("#customFrontHtml"),
+  customBackHtml: $("#customBackHtml"),
+  imgInsert: $("#imgInsert"),
   pageSize: $("#pageSize"),
   fontSize: $("#fontSize"),
   fontFamily: $("#fontFamily"),
@@ -38,6 +61,18 @@ const els = {
 };
 
 let repaginateTimer = null;
+let coverImageDataUrl = null;
+
+const CUSTOM_PAGE_SPLIT = /\n\s*---\s*\n/;
+const SANITIZE_TAGS = new Set([
+  "P", "BR", "DIV", "SPAN", "H1", "H2", "H3", "H4", "EM", "STRONG", "B", "I", "U",
+  "BLOCKQUOTE", "UL", "OL", "LI", "HR", "IMG", "FIGURE", "FIGCAPTION", "A", "SUB", "SUP",
+]);
+const SANITIZE_ATTRS = {
+  IMG: ["src", "alt", "class", "style", "width", "height"],
+  A: ["href", "title", "class"],
+  "*": ["class", "style"],
+};
 
 const PAGE_SIZE = {
   a5: { cls: "size-a5", css: "148mm 210mm" },
@@ -208,54 +243,98 @@ function titlePageParts(opts) {
   return { h1, sub, meta, author, rule };
 }
 
-function makeTitlePage(opts) {
-  const style = opts.titleStyle || "classic";
-  const page = document.createElement("section");
-  page.className = `page page--title page--title-${style}`;
-  const { h1, sub, meta, author, rule } = titlePageParts(opts);
+function sanitizeHtml(raw) {
+  if (!raw || !raw.trim()) return "";
+  const doc = new DOMParser().parseFromString(`<div>${raw}</div>`, "text/html");
+  const walk = (node) => {
+    [...node.childNodes].forEach((ch) => {
+      if (ch.nodeType === Node.TEXT_NODE) return;
+      if (ch.nodeType !== Node.ELEMENT_NODE) { ch.remove(); return; }
+      const tag = ch.tagName;
+      if (!SANITIZE_TAGS.has(tag)) { ch.remove(); return; }
+      [...ch.attributes].forEach((attr) => {
+        const allowed = SANITIZE_ATTRS[tag] || SANITIZE_ATTRS["*"] || [];
+        const ok = allowed.includes(attr.name) || (SANITIZE_ATTRS["*"] || []).includes(attr.name);
+        if (!ok) ch.removeAttribute(attr.name);
+        if (attr.name === "href" && /^javascript:/i.test(attr.value)) ch.removeAttribute("href");
+      });
+      if (tag === "IMG" && ch.getAttribute("src")?.startsWith("javascript:")) ch.removeAttribute("src");
+      walk(ch);
+    });
+  };
+  walk(doc.body.firstElementChild || doc.body);
+  return (doc.body.firstElementChild || doc.body).innerHTML;
+}
 
-  if (style === "minimal") {
-    page.innerHTML = `
-      <div class="title-wrap">
-        <div class="title-wrap__top">${h1}${sub}${meta}</div>
-        <div class="title-wrap__foot">${author}</div>
-      </div>`;
-  } else if (style === "cover") {
-    page.innerHTML = `
-      <div class="title-wrap title-wrap--cover">
-        <div class="title-wrap__top">${h1}${sub}${meta}</div>
-        <div class="title-wrap__foot">${rule}${author}</div>
-      </div>`;
-  } else if (style === "ornate") {
-    page.innerHTML = `
-      <div class="title-wrap">
-        <div class="title-wrap__orn" aria-hidden="true">· ❦ ·</div>
-        ${h1}${sub}${meta}${rule}${author}
-        <div class="title-wrap__orn title-wrap__orn--foot" aria-hidden="true">· ❦ ·</div>
-      </div>`;
+function splitCustomPages(raw) {
+  return (raw || "").split(CUSTOM_PAGE_SPLIT).map((s) => s.trim()).filter(Boolean);
+}
+
+function makeCoverPage(opts) {
+  const style = opts.coverStyle || "text-classic";
+  const page = document.createElement("section");
+  page.className = `page page--cover page--cover-${style}`;
+  const { h1, sub, author } = titlePageParts(opts);
+  const titleHtml = `<h1 class="cover-wrap__title">${escapeHtml(opts.title)}</h1>`;
+  const subHtml = opts.titleSubtitle ? `<p class="cover-wrap__sub">${escapeHtml(opts.titleSubtitle)}</p>` : "";
+  const authorHtml = opts.author ? `<p class="cover-wrap__author">${escapeHtml(opts.author)}</p>` : "";
+
+  if (opts.coverImage && (style === "image-full" || style === "image-band")) {
+    page.style.backgroundImage = `url(${opts.coverImage})`;
+  }
+  if (style === "image-band") {
+    page.innerHTML = `<div class="cover-wrap"><div class="cover-wrap__band">${titleHtml}${subHtml}${authorHtml}</div></div>`;
+  } else if (style.startsWith("text-")) {
+    page.innerHTML = `<div class="cover-wrap">${titleHtml}${subHtml}${authorHtml}</div>`;
   } else {
-    page.innerHTML = `
-      <div class="title-wrap">
-        ${h1}${sub}${meta}${rule}${author}
-      </div>`;
+    page.innerHTML = `<div class="cover-wrap cover-wrap--bare">${titleHtml}${subHtml}${authorHtml}</div>`;
   }
   return page;
 }
 
-function makePrefacePage(opts) {
-  const paras = (opts.prefaceText || "").split(/\n+/).map((s) => s.trim()).filter(Boolean);
+function makeTitleLeafPage(opts) {
+  const style = opts.titleLeafStyle || "center";
+  const page = document.createElement("section");
+  page.className = `page page--titleleaf page--titleleaf-${style}`;
+  page.innerHTML = `
+    <div class="titleleaf-wrap">
+      <h1 class="titleleaf-wrap__title">${escapeHtml(opts.title)}</h1>
+    </div>`;
+  return page;
+}
+
+function makeHalfTitlePage(opts) {
+  const style = opts.halfTitleStyle || "classic";
+  const page = document.createElement("section");
+  page.className = `page page--halftitle page--title page--title-${style} page--halftitle-${style}`;
+  const { h1, sub, meta, author, rule } = titlePageParts(opts);
+
+  if (style === "minimal") {
+    page.innerHTML = `<div class="title-wrap"><div class="title-wrap__top">${h1}${sub}${meta}</div><div class="title-wrap__foot">${author}</div></div>`;
+  } else if (style === "cover") {
+    page.innerHTML = `<div class="title-wrap title-wrap--cover"><div class="title-wrap__top">${h1}${sub}${meta}</div><div class="title-wrap__foot">${rule}${author}</div></div>`;
+  } else if (style === "ornate") {
+    page.innerHTML = `<div class="title-wrap"><div class="title-wrap__orn" aria-hidden="true">· ❦ ·</div>${h1}${sub}${meta}${rule}${author}<div class="title-wrap__orn title-wrap__orn--foot" aria-hidden="true">· ❦ ·</div></div>`;
+  } else {
+    page.innerHTML = `<div class="title-wrap">${h1}${sub}${meta}${rule}${author}</div>`;
+  }
+  return page;
+}
+
+function makeMatterTextPage(kind, headLabel, text) {
+  const paras = (text || "").split(/\n+/).map((s) => s.trim()).filter(Boolean);
   if (!paras.length) return null;
   const page = document.createElement("section");
-  page.className = "page page--preface";
+  page.className = `page page--matter page--${kind}`;
   const head = document.createElement("div");
   head.className = "page__head";
-  head.textContent = "서문";
+  head.textContent = headLabel;
   const body = document.createElement("div");
-  body.className = "page__body body preface-body";
-  body.dataset.pageKind = "preface";
-  paras.forEach((text) => {
+  body.className = "page__body body matter-body";
+  body.dataset.pageKind = kind;
+  paras.forEach((t) => {
     const p = document.createElement("p");
-    p.textContent = text;
+    p.textContent = t;
     body.appendChild(p);
   });
   const num = document.createElement("div");
@@ -265,16 +344,106 @@ function makePrefacePage(opts) {
   return page;
 }
 
-function appendFrontMatter(opts) {
-  if (opts.title && opts.titleStyle !== "none") {
-    els.book.appendChild(makeTitlePage(opts));
-  }
-  const preface = makePrefacePage(opts);
-  if (opts.includePreface && preface) els.book.appendChild(preface);
+function parseTocLine(line) {
+  const m = line.match(/^(.+?)(?:\s*[·．.…]{2,}\s*|\s+)(\d+)\s*$/);
+  if (m) return { label: m[1].trim(), page: m[2] };
+  return { label: line.trim(), page: "" };
 }
+
+function makeTocPage(opts) {
+  const lines = (opts.tocText || "").split("\n").map((s) => s.trim()).filter(Boolean);
+  if (!lines.length) return null;
+  const page = document.createElement("section");
+  page.className = "page page--matter page--toc";
+  const head = document.createElement("div");
+  head.className = "page__head";
+  head.textContent = "목차";
+  const body = document.createElement("div");
+  body.className = "page__body body matter-body";
+  body.dataset.pageKind = "toc";
+  const ul = document.createElement("ul");
+  ul.className = "toc-list";
+  lines.forEach((line) => {
+    const { label, page: pg } = parseTocLine(line);
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="toc-label">${escapeHtml(label)}</span><span class="toc-dots"></span><span class="toc-page">${escapeHtml(pg)}</span>`;
+    ul.appendChild(li);
+  });
+  body.appendChild(ul);
+  const num = document.createElement("div");
+  num.className = "page__num";
+  num.setAttribute("aria-hidden", "true");
+  page.append(head, body, num);
+  return page;
+}
+
+function makeColophonPage(opts) {
+  const paras = (opts.colophonText || "").split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  if (!paras.length) return null;
+  const page = document.createElement("section");
+  page.className = `page page--matter page--colophon page--colophon-${opts.colophonStyle || "center"}`;
+  const wrap = document.createElement("div");
+  wrap.className = "colophon-wrap";
+  paras.forEach((t) => {
+    const p = document.createElement("p");
+    p.textContent = t;
+    wrap.appendChild(p);
+  });
+  page.appendChild(wrap);
+  return page;
+}
+
+function makeCustomPage(html, slot) {
+  const clean = sanitizeHtml(html);
+  if (!clean) return null;
+  const page = document.createElement("section");
+  page.className = `page page--custom page--custom-${slot}`;
+  const inner = document.createElement("div");
+  inner.className = "custom-html body";
+  inner.innerHTML = clean;
+  page.appendChild(inner);
+  return page;
+}
+
+function appendFrontMatter(opts) {
+  if (!opts.title) return;
+  if (opts.includeCover) els.book.appendChild(makeCoverPage(opts));
+  if (opts.includeTitleLeaf) els.book.appendChild(makeTitleLeafPage(opts));
+  if (opts.includeHalfTitle && opts.halfTitleStyle !== "none") {
+    els.book.appendChild(makeHalfTitlePage(opts));
+  }
+  splitCustomPages(opts.customFrontHtml).forEach((html) => {
+    const p = makeCustomPage(html, "front");
+    if (p) els.book.appendChild(p);
+  });
+  if (opts.includePreface) {
+    const p = makeMatterTextPage("preface", opts.prefaceLabel || "서문", opts.prefaceText);
+    if (p) els.book.appendChild(p);
+  }
+  if (opts.includeToc) {
+    const p = makeTocPage(opts);
+    if (p) els.book.appendChild(p);
+  }
+}
+
+function appendBackMatter(opts) {
+  if (opts.includeEpilogue) {
+    const p = makeMatterTextPage("epilogue", opts.epilogueLabel || "참고", opts.epilogueText);
+    if (p) els.book.appendChild(p);
+  }
+  if (opts.includeColophon) {
+    const p = makeColophonPage(opts);
+    if (p) els.book.appendChild(p);
+  }
+  splitCustomPages(opts.customBackHtml).forEach((html) => {
+    const p = makeCustomPage(html, "back");
+    if (p) els.book.appendChild(p);
+  });
+}
+
 function makeContentPage(opts, pageNum) {
   const page = document.createElement("section");
-  page.className = "page";
+  page.className = "page page--main";
   const head = document.createElement("div");
   head.className = "page__head";
   head.textContent = opts.title || "";
@@ -307,6 +476,7 @@ function paginate(blocks, opts) {
   if (!blocks.length) {
     st.body.innerHTML = `<div class="empty">본문 페이지를 클릭해<br/>바로 입력하거나 로그를 붙여넣으세요.</div>`;
     st.body.parentElement.querySelector(".page__num").textContent = "";
+    appendBackMatter(opts);
     return;
   }
 
@@ -348,6 +518,7 @@ function paginate(blocks, opts) {
     st.body.removeChild(p);
     fillWords(blockWords(b, opts.autoQuote), cls, dropFirst, st, newPage, overflow);
   }
+  appendBackMatter(opts);
 }
 
 function fillWords(words, cls, dropFirst, st, newPage, overflow) {
@@ -477,6 +648,7 @@ function paginateRich(blocks, opts) {
   if (!blocks.length) {
     st.body.innerHTML = `<div class="empty">본문 페이지를 클릭해<br/>바로 입력하거나 로그를 붙여넣으세요.</div>`;
     st.body.parentElement.querySelector(".page__num").textContent = "";
+    appendBackMatter(opts);
     return;
   }
 
@@ -511,6 +683,7 @@ function paginateRich(blocks, opts) {
       block = rem;
     }
   }
+  appendBackMatter(opts);
 }
 
 /* ---------- 렌더 ---------- */
@@ -518,29 +691,96 @@ function getOpts() {
   return {
     title: els.title.value.trim(),
     author: els.author.value.trim(),
-    titleStyle: els.titleStyle.value,
     titleSubtitle: els.titleSubtitle.value.trim(),
     titleMeta: els.titleMeta.value.trim(),
+    includeCover: els.includeCover.checked,
+    coverStyle: els.coverStyle.value,
+    coverImage: coverImageDataUrl,
+    includeTitleLeaf: els.includeTitleLeaf.checked,
+    titleLeafStyle: els.titleLeafStyle.value,
+    includeHalfTitle: els.includeHalfTitle.checked,
+    halfTitleStyle: els.halfTitleStyle.value,
     includePreface: els.includePreface.checked,
+    prefaceLabel: els.prefaceLabel.value.trim() || "서문",
     prefaceText: els.prefaceText.value,
+    includeToc: els.includeToc.checked,
+    tocText: els.tocText.value,
+    includeEpilogue: els.includeEpilogue.checked,
+    epilogueLabel: els.epilogueLabel.value.trim() || "참고",
+    epilogueText: els.epilogueText.value,
+    includeColophon: els.includeColophon.checked,
+    colophonText: els.colophonText.value,
+    colophonStyle: els.colophonStyle.value,
+    customFrontHtml: els.customFrontHtml.value,
+    customBackHtml: els.customBackHtml.value,
     autoQuote: els.autoQuote.checked,
     dropcap: els.dropcap.checked,
     firstGap: els.firstGap.value,
   };
 }
 
-function updatePrefaceField() {
+function updateMatterFields() {
   els.prefaceField.hidden = !els.includePreface.checked;
+  els.tocField.hidden = !els.includeToc.checked;
+  els.epilogueField.hidden = !els.includeEpilogue.checked;
+  els.colophonField.hidden = !els.includeColophon.checked;
 }
 
-function syncPrefaceFromBook() {
-  const body = els.book.querySelector(".page--preface .preface-body");
+function syncMatterFromBook(kind) {
+  const body = els.book.querySelector(`.page--${kind} .matter-body`);
   if (!body) return;
+  if (kind === "toc") {
+    const lines = [...body.querySelectorAll(".toc-list li")].map((li) => {
+      const label = li.querySelector(".toc-label")?.textContent.trim() || "";
+      const pg = li.querySelector(".toc-page")?.textContent.trim() || "";
+      return pg ? `${label}······${pg}` : label;
+    });
+    els.tocText.value = lines.join("\n");
+    return;
+  }
   const text = [...body.querySelectorAll("p")]
     .map((p) => p.textContent.trim())
     .filter(Boolean)
     .join("\n\n");
-  els.prefaceText.value = text;
+  if (kind === "preface") els.prefaceText.value = text;
+  else if (kind === "epilogue") els.epilogueText.value = text;
+}
+
+function extractTocFromBody() {
+  const blocks = getRichBlocks();
+  const lines = [];
+  blocks.forEach((el) => {
+    const t = (el.textContent || "").trim();
+    if (/^제\s*\d+\s*장/.test(t) || /^Chapter\s+\d+/i.test(t)) lines.push(t);
+  });
+  if (lines.length) {
+    els.tocText.value = lines.map((l, i) => `${l}······${i + 1}`).join("\n");
+    els.includeToc.checked = true;
+    updateMatterFields();
+    renderBook();
+  }
+}
+
+function insertImageFile(file, forCover = false) {
+  if (!file || !file.type.startsWith("image/")) return;
+  const r = new FileReader();
+  r.onload = () => {
+    if (forCover) {
+      coverImageDataUrl = r.result;
+      renderBook();
+      return;
+    }
+    restoreRange();
+    const inBook = window.getSelection()?.anchorNode && els.book.contains(window.getSelection().anchorNode);
+    if (!inBook) els.richDoc.focus();
+    const html = `<img src="${r.result}" alt="" />`;
+    try { document.execCommand("insertHTML", false, html); }
+    catch (e) { /* ignore */ }
+    saveRange();
+    syncBookToSource();
+    scheduleRepaginate();
+  };
+  r.readAsDataURL(file);
 }
 function renderBook() {
   const opts = getOpts();
@@ -612,7 +852,7 @@ function updateView() {
 
 /* 스크롤·편집: 페이지 본문에서 직접 입력 → 원본 동기화 */
 function syncBookToSource() {
-  const bodies = [...els.book.querySelectorAll(".page:not(.page--title):not(.page--preface) .page__body")];
+  const bodies = [...els.book.querySelectorAll(".page--main .page__body")];
   const html = bodies
     .map((b) => [...b.children].map((c) => c.outerHTML).join(""))
     .join("");
@@ -639,27 +879,28 @@ function pasteLogInto(target, text) {
 
 function applyPageEditability() {
   const editable = viewMode !== "flip";
-  els.book.querySelectorAll(".page:not(.page--title) .page__body").forEach((body) => {
+  const matterKinds = new Set(["preface", "toc", "epilogue"]);
+  els.book.querySelectorAll(".page--main .page__body, .page--matter .matter-body").forEach((body) => {
     body.contentEditable = editable ? "true" : "false";
     if (body.dataset.editBound) return;
     body.dataset.editBound = "1";
     body.addEventListener("input", () => {
-      if (body.dataset.pageKind === "preface") {
-        syncPrefaceFromBook();
-        scheduleRepaginate();
-      } else {
-        syncBookToSource();
-        scheduleRepaginate();
-      }
+      const kind = body.dataset.pageKind;
+      if (matterKinds.has(kind)) syncMatterFromBook(kind);
+      else syncBookToSource();
+      scheduleRepaginate();
     });
     body.addEventListener("blur", () => {
       clearTimeout(repaginateTimer);
-      if (body.dataset.pageKind === "preface") syncPrefaceFromBook();
+      const kind = body.dataset.pageKind;
+      if (matterKinds.has(kind)) syncMatterFromBook(kind);
       renderBook();
     });
     body.addEventListener("paste", (e) => {
       const text = (e.clipboardData || window.clipboardData)?.getData("text/plain");
       if (!text) return;
+      const kind = body.dataset.pageKind;
+      if (matterKinds.has(kind)) return;
       e.preventDefault();
       pasteLogInto(body, text);
     });
@@ -775,13 +1016,32 @@ let timer = null;
 const schedule = () => { clearTimeout(timer); timer = setTimeout(renderBook, 130); };
 
 function bind() {
-  [els.title, els.author, els.titleSubtitle, els.titleMeta, els.prefaceText].forEach((el) =>
-    el.addEventListener("input", schedule)
-  );
-  [els.titleStyle, els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent].forEach((el) =>
-    el.addEventListener("change", renderBook)
-  );
-  els.includePreface.addEventListener("change", () => { updatePrefaceField(); renderBook(); });
+  const matterInputs = [
+    els.title, els.author, els.titleSubtitle, els.titleMeta,
+    els.prefaceText, els.prefaceLabel, els.tocText, els.epilogueText, els.epilogueLabel,
+    els.colophonText, els.customFrontHtml, els.customBackHtml,
+  ];
+  matterInputs.forEach((el) => el && el.addEventListener("input", schedule));
+
+  const matterChanges = [
+    els.coverStyle, els.titleLeafStyle, els.halfTitleStyle, els.colophonStyle,
+    els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent,
+    els.includeCover, els.includeTitleLeaf, els.includeHalfTitle,
+    els.includePreface, els.includeToc, els.includeEpilogue, els.includeColophon,
+  ];
+  matterChanges.forEach((el) => el && el.addEventListener("change", () => { updateMatterFields(); renderBook(); }));
+
+  els.coverImage.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) insertImageFile(file, true);
+    e.target.value = "";
+  });
+  els.clearCoverImage.addEventListener("click", () => {
+    coverImageDataUrl = null;
+    els.coverImage.value = "";
+    renderBook();
+  });
+  els.tocFromBody.addEventListener("click", extractTocFromBody);
   document.querySelectorAll('input[name="narr"]').forEach((r) => r.addEventListener("change", renderBook));
 
   document.querySelectorAll('input[name="view"]').forEach((r) =>
@@ -826,29 +1086,57 @@ function bind() {
       el.addEventListener("input", () => execRich(cmd, el.value));
     } else {
       el.addEventListener("mousedown", (e) => { e.preventDefault(); saveRange(); });
-      el.addEventListener("click", () => execRich(cmd));
+      el.addEventListener("click", () => {
+        if (cmd === "createLink") {
+          const url = prompt("링크 URL", "https://");
+          if (url) execRich("createLink", url);
+        } else execRich(cmd);
+      });
     }
+  });
+
+  els.imgInsert.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) insertImageFile(file);
+    e.target.value = "";
   });
 
   els.pdfBtn.addEventListener("click", saveAsPdf);
   els.sampleBtn.addEventListener("click", () => {
     if (!els.title.value) els.title.value = "비 오는 날의 약속";
     if (!els.titleSubtitle.value) els.titleSubtitle.value = "롤플레이 로그 회지";
+    els.includeCover.checked = true;
+    els.includeTitleLeaf.checked = true;
+    els.includeHalfTitle.checked = true;
     els.includePreface.checked = true;
-    updatePrefaceField();
+    els.includeToc.checked = true;
+    els.includeColophon.checked = true;
+    updateMatterFields();
     els.prefaceText.value =
-      "이 글은 채팅 로그를 소설책 형식으로 옮긴 회지입니다. 본문은 오른쪽 미리보기에서 바로 편집할 수 있습니다.";
+      "이 글은 채팅 로그를 소설책 형식으로 옮긴 회지입니다. 머리말·추천사·감사의 말 등을 자유롭게 쓸 수 있습니다.";
+    els.tocText.value = "제1장  비 오는 날······1\n제2장  만남······12";
+    els.colophonText.value = "2026년 6월 · 회지 메이커로 제작\n© 저작자. 무단 전재 금지.";
     loadLogIntoSheet(SAMPLE);
-    const body = els.book.querySelector(".page:not(.page--title):not(.page--preface) .page__body");
+    const body = els.book.querySelector(".page--main .page__body");
     if (body) body.focus();
   });
   els.clearBtn.addEventListener("click", () => {
     els.richDoc.innerHTML = "";
     els.prefaceText.value = "";
+    els.tocText.value = "";
+    els.epilogueText.value = "";
+    els.colophonText.value = "";
+    els.customFrontHtml.value = "";
+    els.customBackHtml.value = "";
+    coverImageDataUrl = null;
+    els.coverImage.value = "";
     els.includePreface.checked = false;
-    updatePrefaceField();
+    els.includeToc.checked = false;
+    els.includeEpilogue.checked = false;
+    els.includeColophon.checked = false;
+    updateMatterFields();
     renderBook();
-    const body = els.book.querySelector(".page:not(.page--title):not(.page--preface) .page__body");
+    const body = els.book.querySelector(".page--main .page__body");
     if (body) body.focus();
   });
 
@@ -866,7 +1154,7 @@ function bind() {
 }
 
 bind();
-updatePrefaceField();
+updateMatterFields();
 try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch (e) {}
 renderBook();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderBook);
