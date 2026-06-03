@@ -122,6 +122,7 @@ let spreadOn = false;
 let currentIndex = 0;
 let totalPages = 0;
 let useRich = false;
+let renderSeq = 0;
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -289,11 +290,17 @@ function sanitizeHtml(raw) {
   return (doc.body.firstElementChild || doc.body).innerHTML;
 }
 
-function makeSectionHtmlPage(pageClass, html) {
+function tagPage(page, key) {
+  if (page) page.dataset.pageKey = key;
+  return page;
+}
+
+function makeSectionHtmlPage(pageClass, html, pageKey) {
   const clean = sanitizeHtml(html);
   if (!clean) return null;
   const page = document.createElement("section");
   page.className = `page ${pageClass}`;
+  if (pageKey) page.dataset.pageKey = pageKey;
   const inner = document.createElement("div");
   inner.className = "custom-html body";
   inner.innerHTML = clean;
@@ -304,10 +311,11 @@ function makeSectionHtmlPage(pageClass, html) {
 function makeCoverPage(opts) {
   const style = opts.coverStyle || "text-classic";
   if (style === "html") {
-    return makeSectionHtmlPage("page--cover page--cover-html", opts.coverHtml);
+    return makeSectionHtmlPage("page--cover page--cover-html", opts.coverHtml, "cover");
   }
   const page = document.createElement("section");
   page.className = `page page--cover page--cover-${style}`;
+  page.dataset.pageKey = "cover";
   const { h1, sub, author } = titlePageParts(opts);
   const titleHtml = opts.title ? `<h1 class="cover-wrap__title">${escapeHtml(opts.title)}</h1>` : "";
   const subHtml = opts.titleSubtitle ? `<p class="cover-wrap__sub">${escapeHtml(opts.titleSubtitle)}</p>` : "";
@@ -329,10 +337,11 @@ function makeCoverPage(opts) {
 function makeTitleLeafPage(opts) {
   const style = opts.titleLeafStyle || "center";
   if (style === "html") {
-    return makeSectionHtmlPage("page--titleleaf page--titleleaf-html", opts.titleLeafHtml);
+    return makeSectionHtmlPage("page--titleleaf page--titleleaf-html", opts.titleLeafHtml, "title-leaf");
   }
   const page = document.createElement("section");
   page.className = `page page--titleleaf page--titleleaf-${style}`;
+  page.dataset.pageKey = "title-leaf";
   page.innerHTML = `
     <div class="titleleaf-wrap">
       ${opts.title ? `<h1 class="titleleaf-wrap__title">${escapeHtml(opts.title)}</h1>` : ""}
@@ -343,10 +352,11 @@ function makeTitleLeafPage(opts) {
 function makeHalfTitlePage(opts) {
   const style = opts.halfTitleStyle || "classic";
   if (style === "html") {
-    return makeSectionHtmlPage("page--halftitle page--halftitle-html", opts.halfTitleHtml);
+    return makeSectionHtmlPage("page--halftitle page--halftitle-html", opts.halfTitleHtml, "half-title");
   }
   const page = document.createElement("section");
   page.className = `page page--halftitle page--title page--title-${style} page--halftitle-${style}`;
+  page.dataset.pageKey = "half-title";
   const { h1, sub, meta, author, rule } = titlePageParts(opts);
 
   if (style === "minimal") {
@@ -366,6 +376,7 @@ function makeMatterTextPage(kind, headLabel, text) {
   if (!paras.length) return null;
   const page = document.createElement("section");
   page.className = `page page--matter page--${kind}`;
+  page.dataset.pageKey = kind;
   const head = document.createElement("div");
   head.className = "page__head";
   head.textContent = headLabel;
@@ -392,12 +403,13 @@ function parseTocLine(line) {
 
 function makeTocPage(opts) {
   if (opts.tocStyle === "html") {
-    return makeSectionHtmlPage("page--matter page--toc page--toc-html", opts.tocHtml);
+    return makeSectionHtmlPage("page--matter page--toc page--toc-html", opts.tocHtml, "toc");
   }
   const lines = (opts.tocText || "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (!lines.length) return null;
   const page = document.createElement("section");
   page.className = "page page--matter page--toc";
+  page.dataset.pageKey = "toc";
   const head = document.createElement("div");
   head.className = "page__head";
   head.textContent = "목차";
@@ -422,12 +434,13 @@ function makeTocPage(opts) {
 
 function makeColophonPage(opts) {
   if (opts.colophonStyle === "html") {
-    return makeSectionHtmlPage("page--matter page--colophon page--colophon-html", opts.colophonHtml);
+    return makeSectionHtmlPage("page--matter page--colophon page--colophon-html", opts.colophonHtml, "colophon");
   }
   const paras = (opts.colophonText || "").split(/\n+/).map((s) => s.trim()).filter(Boolean);
   if (!paras.length) return null;
   const page = document.createElement("section");
   page.className = `page page--matter page--colophon page--colophon-${opts.colophonStyle || "center"}`;
+  page.dataset.pageKey = "colophon";
   const wrap = document.createElement("div");
   wrap.className = "colophon-wrap";
   paras.forEach((t) => {
@@ -446,7 +459,7 @@ function appendFrontMatter(opts) {
   if (opts.includeHalfTitle) add(makeHalfTitlePage(opts));
   if (opts.includePreface) {
     if (opts.prefaceStyle === "html") {
-      add(makeSectionHtmlPage("page--matter page--preface page--preface-html", opts.prefaceHtml));
+      add(makeSectionHtmlPage("page--matter page--preface page--preface-html", opts.prefaceHtml, "preface"));
     } else {
       add(makeMatterTextPage("preface", opts.prefaceLabel || "서문", opts.prefaceText));
     }
@@ -458,7 +471,7 @@ function appendBackMatter(opts) {
   const add = (p) => { if (p) els.book.appendChild(p); };
   if (opts.includeEpilogue) {
     if (opts.epilogueStyle === "html") {
-      add(makeSectionHtmlPage("page--matter page--epilogue page--epilogue-html", opts.epilogueHtml));
+      add(makeSectionHtmlPage("page--matter page--epilogue page--epilogue-html", opts.epilogueHtml, "epilogue"));
     } else {
       add(makeMatterTextPage("epilogue", opts.epilogueLabel || "참고", opts.epilogueText));
     }
@@ -469,6 +482,7 @@ function appendBackMatter(opts) {
 function makeContentPage(opts, pageNum) {
   const page = document.createElement("section");
   page.className = "page page--main";
+  page.dataset.pageKey = `main-${pageNum}`;
   const head = document.createElement("div");
   head.className = "page__head";
   head.textContent = opts.title || "";
@@ -585,6 +599,14 @@ function getRichBlocks() {
     if (n.nodeType !== Node.ELEMENT_NODE) return;
     const txt = n.textContent || "";
     const isScene = (n.classList && n.classList.contains("scene")) || isDivider(txt);
+    const isSplit = n.dataset?.splitPart === "1";
+    if (isSplit && out.length) {
+      const prev = out[out.length - 1];
+      if (prev.classList.contains("rblk") && !prev.classList.contains("scene")) {
+        prev.innerHTML += isScene ? "" : (n.innerHTML && n.innerHTML.trim() ? n.innerHTML : "");
+        return;
+      }
+    }
     const p = document.createElement("p");
     p.className = "rblk" + (isScene ? " scene" : "");
     const st = n.getAttribute("style");
@@ -603,56 +625,63 @@ function shallowCloneEl(el) {
   if (st) c.setAttribute("style", st);
   return c;
 }
-/* cur에 srcNodes를 넘침 직전까지 채우고, 남은 노드 배열을 반환(서식 보존) */
-function fillInline(cur, srcNodes, overflow) {
-  for (let idx = 0; idx < srcNodes.length; idx++) {
-    const node = srcNodes[idx];
-    if (node.nodeType === Node.TEXT_NODE) {
-      const tokens = node.textContent.split(/(\s+)/).filter((t) => t !== "");
-      const tnode = document.createTextNode("");
-      cur.appendChild(tnode);
-      let acc = "";
-      for (let i = 0; i < tokens.length; i++) {
-        tnode.textContent = acc + tokens[i];
-        if (overflow() && acc.trim() !== "") {
-          tnode.textContent = acc;
-          const restText = tokens.slice(i).join("").replace(/^\s+/, "");
-          const leftover = [];
-          if (restText) leftover.push(document.createTextNode(restText));
-          for (let j = idx + 1; j < srcNodes.length; j++) leftover.push(srcNodes[j]);
-          return leftover;
-        }
-        acc += tokens[i];
+/* 본문 문단: fillWords와 동일하게 바닥까지 채운 뒤 다음 쪽 (KoPub 등 웹폰트 측정 안정) */
+function fillBlockWords(body, blockEl, overflow) {
+  const words = (blockEl.textContent || "").split(/(\s+)/).filter((t) => t !== "");
+  if (!words.length) return null;
+
+  const p = shallowCloneEl(blockEl);
+  p.innerHTML = "";
+  body.appendChild(p);
+  let acc = "";
+
+  for (let i = 0; i < words.length; i++) {
+    const token = words[i];
+    const units = /^\s+$/.test(token) ? [token] : [...token];
+    for (let k = 0; k < units.length; k++) {
+      const bit = units[k];
+      p.textContent = acc + bit;
+      if (!overflow()) {
+        acc += bit;
+        continue;
       }
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const clone = shallowCloneEl(node);
-      cur.appendChild(clone);
-      const childLeft = fillInline(clone, [...node.childNodes], overflow);
-      if (childLeft.length) {
-        const leftEl = shallowCloneEl(node);
-        childLeft.forEach((n) => leftEl.appendChild(n));
-        const leftover = [leftEl];
-        for (let j = idx + 1; j < srcNodes.length; j++) leftover.push(srcNodes[j]);
-        return leftover;
+      if (acc.trim() !== "") {
+        p.textContent = acc;
+        const rem = shallowCloneEl(blockEl);
+        rem.dataset.splitPart = "1";
+        rem.textContent = units.slice(k).join("") + words.slice(i + 1).join("");
+        return rem.textContent.trim() ? rem : null;
       }
-      if (overflow() && cur.childNodes.length > 1) {
-        cur.removeChild(clone);
-        const leftover = [node];
-        for (let j = idx + 1; j < srcNodes.length; j++) leftover.push(srcNodes[j]);
-        return leftover;
-      }
+      acc += bit;
     }
   }
-  return [];
+
+  if (blockEl.innerHTML?.trim() && !blockEl.classList.contains("scene")) {
+    p.innerHTML = blockEl.innerHTML;
+    if (overflow()) p.textContent = acc;
+  }
+  return null;
 }
+
 function fillBlock(body, blockEl, overflow) {
-  const cur = shallowCloneEl(blockEl);
-  body.appendChild(cur);
-  const leftover = fillInline(cur, [...blockEl.childNodes], overflow);
-  if (!leftover.length) return null;
-  const rem = shallowCloneEl(blockEl);
-  leftover.forEach((n) => rem.appendChild(n));
-  return rem;
+  if (blockEl.classList.contains("scene")) {
+    const p = shallowCloneEl(blockEl);
+    p.textContent = "·  ·  ·";
+    body.appendChild(p);
+    if (!overflow()) return null;
+    body.removeChild(p);
+    const rem = shallowCloneEl(blockEl);
+    rem.textContent = "·  ·  ·";
+    return rem;
+  }
+
+  const whole = shallowCloneEl(blockEl);
+  whole.innerHTML = blockEl.innerHTML?.trim() ? blockEl.innerHTML : "<br>";
+  body.appendChild(whole);
+  if (!overflow()) return null;
+  body.removeChild(whole);
+
+  return fillBlockWords(body, blockEl, overflow);
 }
 
 function paginateRich(blocks, opts) {
@@ -668,7 +697,10 @@ function paginateRich(blocks, opts) {
     st.body = body;
   };
   newPage();
-  const overflow = () => st.body.scrollHeight > st.body.clientHeight + 1;
+  const overflow = () => {
+    void st.body.offsetHeight;
+    return Math.ceil(st.body.scrollHeight) > Math.floor(st.body.clientHeight) + 4;
+  };
 
   if (!blocks.length) {
     st.body.innerHTML = `<div class="empty">본문 페이지를 클릭해<br/>바로 입력하거나 로그를 붙여넣으세요.</div>`;
@@ -686,19 +718,6 @@ function paginateRich(blocks, opts) {
   }
 
   for (const blk of blocks) {
-    const whole = blk.cloneNode(true);
-    st.body.appendChild(whole);
-    if (!overflow()) continue;
-    st.body.removeChild(whole);
-
-    if (st.body.childElementCount > 0) {
-      newPage();
-      const w2 = blk.cloneNode(true);
-      st.body.appendChild(w2);
-      if (!overflow()) continue;
-      st.body.removeChild(w2);
-    }
-
     let block = blk.cloneNode(true);
     let guard = 0;
     while (block && guard++ < 4000) {
@@ -850,7 +869,108 @@ function insertImageFile(file, forCover = false) {
   };
   r.readAsDataURL(file);
 }
-function renderBook() {
+function captureViewAnchor() {
+  const pages = [...els.book.querySelectorAll(".page")];
+  const page = pages[currentIndex];
+  if (!page) return { idx: 0, mainIdx: -1, pageKey: null };
+  const mains = [...els.book.querySelectorAll(".page--main")];
+  const mainIdx = page.classList.contains("page--main") ? mains.indexOf(page) : -1;
+  return { idx: currentIndex, mainIdx, pageKey: page.dataset.pageKey || null };
+}
+
+function restoreViewAnchor(anchor) {
+  const pages = [...els.book.querySelectorAll(".page")];
+  if (!pages.length) {
+    currentIndex = 0;
+    return;
+  }
+  if (anchor.pageKey) {
+    const byKey = pages.findIndex((p) => p.dataset.pageKey === anchor.pageKey);
+    if (byKey >= 0) {
+      currentIndex = byKey;
+      if (viewMode === "flip" && spreadOn && currentIndex % 2 === 1) currentIndex -= 1;
+      return;
+    }
+  }
+  if (anchor.mainIdx >= 0) {
+    const mains = [...els.book.querySelectorAll(".page--main")];
+    const page = mains[Math.min(anchor.mainIdx, Math.max(0, mains.length - 1))];
+    currentIndex = Math.max(0, pages.indexOf(page));
+  } else {
+    currentIndex = Math.min(anchor.idx, pages.length - 1);
+  }
+  if (viewMode === "flip" && spreadOn && currentIndex % 2 === 1) currentIndex -= 1;
+}
+
+function syncFlipIndexFromTarget(target) {
+  if (viewMode !== "flip") return;
+  const page = target?.closest?.(".page");
+  if (!page) return;
+  const pages = [...els.book.querySelectorAll(".page")];
+  const i = pages.indexOf(page);
+  if (i >= 0) currentIndex = i;
+}
+
+function bookFontFamily() {
+  const v = els.fontFamily.value || "";
+  const m = v.match(/['"]([^'"]+)['"]/);
+  return m ? m[1] : v.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+}
+
+async function ensureBookFontLoaded() {
+  const fam = bookFontFamily();
+  const pt = els.fontSize.value === "small" ? "9pt" : els.fontSize.value === "large" ? "11.5pt" : "10.2pt";
+  const probe = document.getElementById("fontProbe");
+  if (probe) {
+    probe.style.fontFamily = els.fontFamily.value;
+    probe.style.fontSize = pt;
+  }
+  if (!document.fonts?.load) return;
+  const specs = [`400 9pt "${fam}"`, `400 10.2pt "${fam}"`, `400 11.5pt "${fam}"`, `400 ${pt} "${fam}"`];
+  try {
+    await Promise.all(specs.map((s) => document.fonts.load(s)));
+  } catch (e) { /* ignore */ }
+  await document.fonts.ready;
+  for (let i = 0; i < 60; i++) {
+    if (document.fonts.check(`12px "${fam}"`)) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+function isAtEditableStart(body) {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount || !body.contains(sel.anchorNode)) return false;
+  const range = sel.getRangeAt(0);
+  if (!range.collapsed) return false;
+  const start = document.createRange();
+  start.selectNodeContents(body);
+  start.collapse(true);
+  return range.compareBoundaryPoints(Range.START_TO_START, start) === 0;
+}
+
+function getPreviousEditableBody(body) {
+  const page = body.closest(".page");
+  if (!page) return null;
+  if (page.classList.contains("page--main")) {
+    const mains = [...els.book.querySelectorAll(".page--main")];
+    const i = mains.indexOf(page);
+    return i > 0 ? mains[i - 1].querySelector(".page__body") : null;
+  }
+  const pages = [...els.book.querySelectorAll(".page")];
+  const i = pages.indexOf(page);
+  for (let j = i - 1; j >= 0; j--) {
+    const b = pages[j].querySelector(".matter-body");
+    if (b) return b;
+  }
+  return null;
+}
+
+function mergeEditableBodies(prev, cur) {
+  while (cur.firstChild) prev.appendChild(cur.firstChild);
+  if (!cur.textContent.trim() && !cur.querySelector("img")) cur.innerHTML = "";
+}
+
+function renderBookNow(anchor) {
   const opts = getOpts();
   const size = PAGE_SIZE[els.pageSize.value] || PAGE_SIZE.a5;
   const narr = document.querySelector('input[name="narr"]:checked')?.value || "plain";
@@ -864,7 +984,18 @@ function renderBook() {
   applyPrintPageSize(size.css);
 
   paginateRich(getRichBlocks(), opts);
+  restoreViewAnchor(anchor);
   updateView();
+}
+
+function renderBook(forcedAnchor) {
+  const anchor = forcedAnchor || captureViewAnchor();
+  const seq = ++renderSeq;
+  Promise.resolve().then(async () => {
+    await ensureBookFontLoaded();
+    if (seq !== renderSeq) return;
+    renderBookNow(anchor);
+  });
 }
 
 function applyPrintPageSize(sizeCss) {
@@ -921,10 +1052,25 @@ function updateView() {
 /* 스크롤·편집: 페이지 본문에서 직접 입력 → 원본 동기화 */
 function syncBookToSource() {
   const bodies = [...els.book.querySelectorAll(".page--main .page__body")];
-  const html = bodies
-    .map((b) => [...b.children].map((c) => c.outerHTML).join(""))
-    .join("");
-  els.richDoc.innerHTML = html;
+  els.richDoc.innerHTML = "";
+  bodies.forEach((b, bi) => {
+    [...b.children].forEach((child, ci) => {
+      const clone = child.cloneNode(true);
+      const prev = els.richDoc.lastElementChild;
+      const crossPage = bi > 0 && ci === 0;
+      const mergeable =
+        crossPage &&
+        prev?.classList?.contains("rblk") &&
+        !prev.classList.contains("scene") &&
+        clone.classList?.contains("rblk") &&
+        !clone.classList.contains("scene");
+      if (mergeable) {
+        prev.innerHTML += clone.innerHTML;
+        return;
+      }
+      els.richDoc.appendChild(clone);
+    });
+  });
 }
 
 function scheduleRepaginate() {
@@ -945,23 +1091,53 @@ function pasteLogInto(target, text) {
   renderBook();
 }
 
+function handleEditableInput(body, matterKinds) {
+  const kind = body.dataset.pageKind;
+  if (matterKinds.has(kind)) syncMatterFromBook(kind);
+  else syncBookToSource();
+  scheduleRepaginate();
+}
+
+function handleEditableBackspace(body, matterKinds, e) {
+  if (!isAtEditableStart(body)) return;
+  e.preventDefault();
+  const prev = getPreviousEditableBody(body);
+  if (!prev) return;
+  const page = body.closest(".page--main");
+  const mains = page ? [...els.book.querySelectorAll(".page--main")] : [];
+  const mergeFrom = page ? mains.indexOf(page) : -1;
+  mergeEditableBodies(prev, body);
+  const kind = body.dataset.pageKind;
+  if (matterKinds.has(kind)) syncMatterFromBook(kind);
+  else syncBookToSource();
+  clearTimeout(repaginateTimer);
+  const anchor =
+    mergeFrom > 0
+      ? { mainIdx: mergeFrom - 1, idx: captureViewAnchor().idx, pageKey: `main-${mergeFrom}` }
+      : captureViewAnchor();
+  renderBook(anchor);
+}
+
 function applyPageEditability() {
   const matterKinds = new Set(["preface", "toc", "epilogue"]);
   els.book.querySelectorAll(".page--main .page__body, .page--matter .matter-body").forEach((body) => {
     body.contentEditable = "true";
     if (body.dataset.editBound) return;
     body.dataset.editBound = "1";
-    body.addEventListener("input", () => {
-      const kind = body.dataset.pageKind;
-      if (matterKinds.has(kind)) syncMatterFromBook(kind);
-      else syncBookToSource();
-      scheduleRepaginate();
+    body.addEventListener("input", () => handleEditableInput(body, matterKinds));
+    body.addEventListener("keydown", (e) => {
+      if (e.key === "Backspace") handleEditableBackspace(body, matterKinds, e);
+    });
+    body.addEventListener("focus", () => {
+      syncFlipIndexFromTarget(body);
+      updateView();
     });
     body.addEventListener("blur", () => {
       clearTimeout(repaginateTimer);
       const kind = body.dataset.pageKind;
       if (matterKinds.has(kind)) syncMatterFromBook(kind);
-      renderBook();
+      else syncBookToSource();
+      scheduleRepaginate();
     });
     body.addEventListener("paste", (e) => {
       const text = (e.clipboardData || window.clipboardData)?.getData("text/plain");
@@ -984,11 +1160,14 @@ function scaleSpread(sample) {
   els.book.style.transform = scale < 0.999 ? `scale(${scale})` : "";
 }
 function go(delta) {
+  const pages = els.book.querySelectorAll(".page");
+  const max = Math.max(0, pages.length - 1);
   const step = (viewMode === "flip" && spreadOn) ? 2 : 1;
   currentIndex += delta * step;
+  if (currentIndex > max) currentIndex = max;
+  if (currentIndex < 0) currentIndex = 0;
   updateView();
-  const cur = els.book.querySelector(".page.is-current, .page.is-left");
-  if (cur) cur.scrollIntoView({ block: "nearest" });
+  if (viewMode === "flip") els.stage.scrollTop = 0;
 }
 
 /* ---------- PDF ---------- */
@@ -1115,8 +1294,16 @@ function bind() {
       updateView();
     })
   );
+  const blockNavBlur = (e) => e.preventDefault();
+  els.prevBtn.addEventListener("mousedown", blockNavBlur);
+  els.nextBtn.addEventListener("mousedown", blockNavBlur);
   els.prevBtn.addEventListener("click", () => go(-1));
   els.nextBtn.addEventListener("click", () => go(1));
+  els.book.addEventListener("click", (e) => {
+    if (viewMode !== "flip") return;
+    syncFlipIndexFromTarget(e.target);
+    updateView();
+  });
   window.addEventListener("resize", () => { if (viewMode === "flip" && spreadOn) updateView(); });
 
   els.richToggle.addEventListener("change", (e) => setRichMode(e.target.checked));
