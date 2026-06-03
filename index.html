@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -124,9 +124,9 @@
         </label>
 
         <p class="panel__hint" id="simpleHint">
-          오른쪽 미리보기에 <b>바로 입력·붙여넣기</b> 하세요.
-          <code>*지문*</code> · <code>"대사"</code> 형식으로 붙여넣으면 자동으로 정리되고,
-          <code>***</code> 줄은 장면 구분이 됩니다.
+          오른쪽 미리보기 <b>본문 페이지</b>를 클릭해 입력·붙여넣기 하세요.
+          <code>*지문*</code> · <code>"대사"</code> 형식은 자동 정리,
+          <code>***</code> 줄은 장면 구분입니다.
         </p>
 
       </div>
@@ -186,22 +186,17 @@
 
       <div class="stage" id="stage">
         <button class="nav nav--prev no-print" id="prevBtn" type="button" aria-label="이전 쪽">‹</button>
-        <!-- 스크롤·편집 모드: 바로 편집하는 시트(책 페이지 모양) -->
-        <div id="sheetWrap" class="sheetwrap size-a5">
-          <div class="sheet">
-            <div class="page__head" id="sheetHead"></div>
-            <div id="richDoc" class="page__body body" contenteditable="true" spellcheck="false"
-              data-ph="여기에 롤플레이 로그를 바로 붙여넣거나 입력하세요."></div>
-            <div class="page__num" id="sheetNum"></div>
-          </div>
+        <!-- 편집 원본(화면 밖) — 붙여넣기·서식용 -->
+        <div id="docSource" class="doc-source" aria-hidden="true">
+          <div id="richDoc" class="body" contenteditable="true" spellcheck="false"></div>
         </div>
-        <!-- 넘기기 / PDF 모드: 페이지 분할된 책 -->
+        <!-- 스크롤/넘기기 동일한 페이지 분할 미리보기 -->
         <div id="book" class="book size-a5"></div>
         <button class="nav nav--next no-print" id="nextBtn" type="button" aria-label="다음 쪽">›</button>
       </div>
     </section>
   </main>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

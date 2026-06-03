@@ -287,25 +287,19 @@ html, body {
 .rtb-color input { width: 22px; height: 20px; border: 0; background: none; padding: 0; cursor: pointer; }
 .rtb-sep { width: 1px; height: 20px; background: var(--line); margin: 0 3px; }
 
-/* ===== 바로 편집 시트 (스크롤·편집 모드) ===== */
-.sheetwrap { padding: 32px 24px 90px; display: flex; justify-content: center; }
-.sheet {
-  display: flex; flex-direction: column; flex: 0 0 auto;
-  background: var(--book-paper); color: var(--book-ink);
-  box-shadow: 0 6px 24px rgba(0,0,0,.14);
-}
-.size-a5 .sheet { width: 148mm; min-height: 210mm; padding: 20mm 18mm 15mm; }
-.size-a4 .sheet { width: 210mm; min-height: 297mm; padding: 25mm 24mm 20mm; }
-.size-b6 .sheet { width: 128mm; min-height: 182mm; padding: 17mm 15mm 13mm; }
-/* 편집 본문은 클립하지 않고 늘어남 */
-.sheet .page__body { flex: 1 1 auto; min-height: 0; overflow: visible; outline: none; }
-#richDoc:empty::before {
-  content: attr(data-ph); color: var(--book-soft); font-style: italic;
+/* 편집 원본(접근성·execCommand용, 화면 밖) */
+.doc-source {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
-/* 스크롤·편집 = 시트 보임 / 책 숨김, 넘기기 = 반대 */
-.stage:not(.is-flip) #book { display: none; }
-.stage.is-flip .sheetwrap { display: none; }
+/* 스크롤·편집: 본문 페이지에서 바로 입력 */
+.stage:not(.is-flip) .page:not(.page--title) .page__body {
+  cursor: text; outline: none;
+}
+.stage:not(.is-flip) .page:not(.page--title) .page__body:focus {
+  box-shadow: inset 0 0 0 1px rgba(28, 28, 26, .12);
+}
 
 /* ===== 인쇄 (PDF) ===== */
 @media print {
@@ -315,8 +309,7 @@ html, body {
   .layout { display: block; height: auto; }
   .preview { display: block; height: auto; overflow: visible; background: #fff; }
   .stage { overflow: visible; height: auto; }
-  .sheetwrap { display: none !important; }
-  #book { display: block !important; }
+  .doc-source { display: none !important; }
   .book, .book--flip, .book--flip.is-spread { display: block; padding: 0; transform: none !important; }
   .book--flip .page { display: flex !important; margin: 0 !important; }
   .page { box-shadow: none !important; margin: 0 !important; page-break-after: always; break-after: page; }

@@ -27,12 +27,11 @@ const els = {
   spreadMode: $("#spreadMode"),
   indent: $("#indent"),
   richToggle: $("#richToggle"),
-  sheetWrap: $("#sheetWrap"),
-  sheetHead: $("#sheetHead"),
-  sheetNum: $("#sheetNum"),
   richDoc: $("#richDoc"),
   rtoolbar: $("#rtoolbar"),
 };
+
+let repaginateTimer = null;
 
 const PAGE_SIZE = {
   a5: { cls: "size-a5", css: "148mm 210mm" },
@@ -404,7 +403,7 @@ function paginateRich(blocks, opts) {
   const overflow = () => st.body.scrollHeight > st.body.clientHeight + 1;
 
   if (!blocks.length) {
-    st.body.innerHTML = `<div class="empty">미리보기에 바로 입력하거나<br/>왼쪽에 로그를 붙여넣고 ‘불러오기’를 누르세요.</div>`;
+    st.body.innerHTML = `<div class="empty">본문 페이지를 클릭해<br/>바로 입력하거나 로그를 붙여넣으세요.</div>`;
     st.body.parentElement.querySelector(".page__num").textContent = "";
     return;
   }
@@ -463,12 +462,6 @@ function renderBook() {
   els.book.className = `book ${mods}`;
   els.book.style.setProperty("--book-font", els.fontFamily.value);
 
-  // 바로 편집 시트도 같은 판형/타이포 + 머리말/쪽수 적용
-  els.sheetWrap.className = `sheetwrap ${mods}`;
-  els.sheetWrap.style.setProperty("--book-font", els.fontFamily.value);
-  els.sheetHead.textContent = opts.title || "";
-  els.sheetNum.textContent = (els.richDoc.textContent || "").trim() ? "1" : "";
-
   applyPrintPageSize(size.css);
 
   paginateRich(getRichBlocks(), opts);
@@ -500,6 +493,7 @@ function updateView() {
     els.stage.classList.remove("is-flip");
     els.book.classList.remove("book--flip", "is-spread");
     els.pageCount.textContent = totalPages ? `전체 ${totalPages}쪽` : "";
+    applyPageEditability();
     return;
   }
 
@@ -522,7 +516,59 @@ function updateView() {
     els.prevBtn.disabled = currentIndex <= 0;
     els.nextBtn.disabled = currentIndex >= totalPages - 1;
   }
+  applyPageEditability();
 }
+
+/* 스크롤·편집: 페이지 본문에서 직접 입력 → 원본 동기화 */
+function syncBookToSource() {
+  const bodies = [...els.book.querySelectorAll(".page:not(.page--title) .page__body")];
+  const html = bodies
+    .map((b) => [...b.children].map((c) => c.outerHTML).join(""))
+    .join("");
+  els.richDoc.innerHTML = html;
+}
+
+function scheduleRepaginate() {
+  clearTimeout(repaginateTimer);
+  repaginateTimer = setTimeout(renderBook, 700);
+}
+
+function pasteLogInto(target, text) {
+  const html = logToHtml(text);
+  if (target === els.richDoc) {
+    els.richDoc.innerHTML = html;
+    renderBook();
+    return;
+  }
+  try { document.execCommand("insertHTML", false, html); }
+  catch (e) { target.innerHTML += html; }
+  syncBookToSource();
+  renderBook();
+}
+
+function applyPageEditability() {
+  const editable = viewMode !== "flip";
+  els.book.querySelectorAll(".page:not(.page--title) .page__body").forEach((body) => {
+    body.contentEditable = editable ? "true" : "false";
+    if (body.dataset.editBound) return;
+    body.dataset.editBound = "1";
+    body.addEventListener("input", () => {
+      syncBookToSource();
+      scheduleRepaginate();
+    });
+    body.addEventListener("blur", () => {
+      clearTimeout(repaginateTimer);
+      renderBook();
+    });
+    body.addEventListener("paste", (e) => {
+      const text = (e.clipboardData || window.clipboardData)?.getData("text/plain");
+      if (!text) return;
+      e.preventDefault();
+      pasteLogInto(body, text);
+    });
+  });
+}
+
 function scaleSpread(sample) {
   if (!sample) return;
   const pageW = sample.getBoundingClientRect().width;
@@ -553,7 +599,9 @@ function saveAsPdf() {
 let savedRange = null;
 function saveRange() {
   const s = window.getSelection();
-  if (s && s.rangeCount && els.richDoc.contains(s.anchorNode)) {
+  if (!s || !s.rangeCount) return;
+  const node = s.anchorNode;
+  if (node && (els.richDoc.contains(node) || els.book.contains(node))) {
     savedRange = s.getRangeAt(0).cloneRange();
   }
 }
@@ -587,12 +635,15 @@ function loadLogIntoSheet(text) {
   renderBook();
 }
 function execRich(cmd, val) {
-  els.richDoc.focus();
   restoreRange();
+  const s = window.getSelection();
+  const inBook = s?.anchorNode && els.book.contains(s.anchorNode);
+  if (!inBook) els.richDoc.focus();
   try { document.execCommand("styleWithCSS", false, true); } catch (e) {}
   document.execCommand(cmd, false, val);
   saveRange();
-  schedule();
+  if (inBook) { syncBookToSource(); scheduleRepaginate(); }
+  else schedule();
 }
 function applyFontSizePx(px) {
   els.richDoc.focus();
@@ -649,20 +700,16 @@ function bind() {
 
   els.richToggle.addEventListener("change", (e) => setRichMode(e.target.checked));
 
-  // 미리보기 시트 = 바로 편집
-  els.richDoc.addEventListener("input", schedule);
-  ["keyup", "mouseup"].forEach((ev) => els.richDoc.addEventListener(ev, saveRange));
+  ["keyup", "mouseup"].forEach((ev) => {
+    els.richDoc.addEventListener(ev, saveRange);
+    els.book.addEventListener(ev, saveRange);
+  });
   els.richDoc.addEventListener("blur", saveRange);
-
-  // 로그를 그대로 붙여넣으면 지문/대사/장면을 자동 정리
   els.richDoc.addEventListener("paste", (e) => {
     const text = (e.clipboardData || window.clipboardData)?.getData("text/plain");
     if (!text) return;
     e.preventDefault();
-    const html = logToHtml(text);
-    try { document.execCommand("insertHTML", false, html); }
-    catch (err) { els.richDoc.innerHTML += html; }
-    schedule();
+    pasteLogInto(els.richDoc, text);
   });
 
   // 서식 툴바
@@ -699,6 +746,7 @@ function bind() {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") { e.preventDefault(); saveAsPdf(); return; }
     const ae = document.activeElement;
     const typing = ae === els.richDoc || els.richDoc.contains(ae) ||
+      (ae && ae.isContentEditable && els.book.contains(ae)) ||
       (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT"));
     if (viewMode === "flip" && !typing) {
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); go(1); }
