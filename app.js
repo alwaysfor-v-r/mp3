@@ -11,6 +11,12 @@ const els = {
   stage: $("#stage"),
   title: $("#bookTitle"),
   author: $("#bookAuthor"),
+  titleStyle: $("#titleStyle"),
+  titleSubtitle: $("#titleSubtitle"),
+  titleMeta: $("#titleMeta"),
+  includePreface: $("#includePreface"),
+  prefaceText: $("#prefaceText"),
+  prefaceField: $("#prefaceField"),
   pageSize: $("#pageSize"),
   fontSize: $("#fontSize"),
   fontFamily: $("#fontFamily"),
@@ -190,15 +196,81 @@ function blockWords(b, autoQuote) {
 }
 
 /* ---------- 페이지 빌더 ---------- */
+function titlePageParts(opts) {
+  const sub = opts.titleSubtitle
+    ? `<p class="title-wrap__sub">${escapeHtml(opts.titleSubtitle)}</p>` : "";
+  const meta = opts.titleMeta
+    ? `<p class="title-wrap__meta">${escapeHtml(opts.titleMeta)}</p>` : "";
+  const author = opts.author
+    ? `<div class="title-wrap__author">${escapeHtml(opts.author)}</div>` : "";
+  const rule = opts.author ? `<div class="title-wrap__rule"></div>` : "";
+  const h1 = `<h1 class="title-wrap__title">${escapeHtml(opts.title)}</h1>`;
+  return { h1, sub, meta, author, rule };
+}
+
 function makeTitlePage(opts) {
+  const style = opts.titleStyle || "classic";
   const page = document.createElement("section");
-  page.className = "page page--title";
-  page.innerHTML = `
-    <div class="title-wrap">
-      <h1 class="title-wrap__title">${escapeHtml(opts.title)}</h1>
-      ${opts.author ? `<div class="title-wrap__rule"></div><div class="title-wrap__author">${escapeHtml(opts.author)}</div>` : ""}
-    </div>`;
+  page.className = `page page--title page--title-${style}`;
+  const { h1, sub, meta, author, rule } = titlePageParts(opts);
+
+  if (style === "minimal") {
+    page.innerHTML = `
+      <div class="title-wrap">
+        <div class="title-wrap__top">${h1}${sub}${meta}</div>
+        <div class="title-wrap__foot">${author}</div>
+      </div>`;
+  } else if (style === "cover") {
+    page.innerHTML = `
+      <div class="title-wrap title-wrap--cover">
+        <div class="title-wrap__top">${h1}${sub}${meta}</div>
+        <div class="title-wrap__foot">${rule}${author}</div>
+      </div>`;
+  } else if (style === "ornate") {
+    page.innerHTML = `
+      <div class="title-wrap">
+        <div class="title-wrap__orn" aria-hidden="true">· ❦ ·</div>
+        ${h1}${sub}${meta}${rule}${author}
+        <div class="title-wrap__orn title-wrap__orn--foot" aria-hidden="true">· ❦ ·</div>
+      </div>`;
+  } else {
+    page.innerHTML = `
+      <div class="title-wrap">
+        ${h1}${sub}${meta}${rule}${author}
+      </div>`;
+  }
   return page;
+}
+
+function makePrefacePage(opts) {
+  const paras = (opts.prefaceText || "").split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  if (!paras.length) return null;
+  const page = document.createElement("section");
+  page.className = "page page--preface";
+  const head = document.createElement("div");
+  head.className = "page__head";
+  head.textContent = "서문";
+  const body = document.createElement("div");
+  body.className = "page__body body preface-body";
+  body.dataset.pageKind = "preface";
+  paras.forEach((text) => {
+    const p = document.createElement("p");
+    p.textContent = text;
+    body.appendChild(p);
+  });
+  const num = document.createElement("div");
+  num.className = "page__num";
+  num.setAttribute("aria-hidden", "true");
+  page.append(head, body, num);
+  return page;
+}
+
+function appendFrontMatter(opts) {
+  if (opts.title && opts.titleStyle !== "none") {
+    els.book.appendChild(makeTitlePage(opts));
+  }
+  const preface = makePrefacePage(opts);
+  if (opts.includePreface && preface) els.book.appendChild(preface);
 }
 function makeContentPage(opts, pageNum) {
   const page = document.createElement("section");
@@ -220,7 +292,7 @@ function paginate(blocks, opts) {
   els.book.classList.remove("book--flip"); // 측정은 항상 펼친 상태에서
   els.book.innerHTML = "";
 
-  if (opts.title) els.book.appendChild(makeTitlePage(opts));
+  appendFrontMatter(opts);
 
   const st = { pageNum: 0, body: null };
   const newPage = () => {
@@ -233,7 +305,7 @@ function paginate(blocks, opts) {
   const overflow = () => st.body.scrollHeight > st.body.clientHeight + 1;
 
   if (!blocks.length) {
-    st.body.innerHTML = `<div class="empty">왼쪽에 로그를 붙여넣으면<br/>여기에 책 내지처럼 정리돼요.</div>`;
+    st.body.innerHTML = `<div class="empty">본문 페이지를 클릭해<br/>바로 입력하거나 로그를 붙여넣으세요.</div>`;
     st.body.parentElement.querySelector(".page__num").textContent = "";
     return;
   }
@@ -390,7 +462,7 @@ function fillBlock(body, blockEl, overflow) {
 function paginateRich(blocks, opts) {
   els.book.classList.remove("book--flip");
   els.book.innerHTML = "";
-  if (opts.title) els.book.appendChild(makeTitlePage(opts));
+  appendFrontMatter(opts);
 
   const st = { pageNum: 0, body: null };
   const newPage = () => {
@@ -446,10 +518,29 @@ function getOpts() {
   return {
     title: els.title.value.trim(),
     author: els.author.value.trim(),
+    titleStyle: els.titleStyle.value,
+    titleSubtitle: els.titleSubtitle.value.trim(),
+    titleMeta: els.titleMeta.value.trim(),
+    includePreface: els.includePreface.checked,
+    prefaceText: els.prefaceText.value,
     autoQuote: els.autoQuote.checked,
     dropcap: els.dropcap.checked,
     firstGap: els.firstGap.value,
   };
+}
+
+function updatePrefaceField() {
+  els.prefaceField.hidden = !els.includePreface.checked;
+}
+
+function syncPrefaceFromBook() {
+  const body = els.book.querySelector(".page--preface .preface-body");
+  if (!body) return;
+  const text = [...body.querySelectorAll("p")]
+    .map((p) => p.textContent.trim())
+    .filter(Boolean)
+    .join("\n\n");
+  els.prefaceText.value = text;
 }
 function renderBook() {
   const opts = getOpts();
@@ -521,7 +612,7 @@ function updateView() {
 
 /* 스크롤·편집: 페이지 본문에서 직접 입력 → 원본 동기화 */
 function syncBookToSource() {
-  const bodies = [...els.book.querySelectorAll(".page:not(.page--title) .page__body")];
+  const bodies = [...els.book.querySelectorAll(".page:not(.page--title):not(.page--preface) .page__body")];
   const html = bodies
     .map((b) => [...b.children].map((c) => c.outerHTML).join(""))
     .join("");
@@ -553,11 +644,17 @@ function applyPageEditability() {
     if (body.dataset.editBound) return;
     body.dataset.editBound = "1";
     body.addEventListener("input", () => {
-      syncBookToSource();
-      scheduleRepaginate();
+      if (body.dataset.pageKind === "preface") {
+        syncPrefaceFromBook();
+        scheduleRepaginate();
+      } else {
+        syncBookToSource();
+        scheduleRepaginate();
+      }
     });
     body.addEventListener("blur", () => {
       clearTimeout(repaginateTimer);
+      if (body.dataset.pageKind === "preface") syncPrefaceFromBook();
       renderBook();
     });
     body.addEventListener("paste", (e) => {
@@ -678,10 +775,13 @@ let timer = null;
 const schedule = () => { clearTimeout(timer); timer = setTimeout(renderBook, 130); };
 
 function bind() {
-  [els.title, els.author].forEach((el) => el.addEventListener("input", schedule));
-  [els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent].forEach((el) =>
+  [els.title, els.author, els.titleSubtitle, els.titleMeta, els.prefaceText].forEach((el) =>
+    el.addEventListener("input", schedule)
+  );
+  [els.titleStyle, els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent].forEach((el) =>
     el.addEventListener("change", renderBook)
   );
+  els.includePreface.addEventListener("change", () => { updatePrefaceField(); renderBook(); });
   document.querySelectorAll('input[name="narr"]').forEach((r) => r.addEventListener("change", renderBook));
 
   document.querySelectorAll('input[name="view"]').forEach((r) =>
@@ -733,13 +833,23 @@ function bind() {
   els.pdfBtn.addEventListener("click", saveAsPdf);
   els.sampleBtn.addEventListener("click", () => {
     if (!els.title.value) els.title.value = "비 오는 날의 약속";
+    if (!els.titleSubtitle.value) els.titleSubtitle.value = "롤플레이 로그 회지";
+    els.includePreface.checked = true;
+    updatePrefaceField();
+    els.prefaceText.value =
+      "이 글은 채팅 로그를 소설책 형식으로 옮긴 회지입니다. 본문은 오른쪽 미리보기에서 바로 편집할 수 있습니다.";
     loadLogIntoSheet(SAMPLE);
-    els.richDoc.focus();
+    const body = els.book.querySelector(".page:not(.page--title):not(.page--preface) .page__body");
+    if (body) body.focus();
   });
   els.clearBtn.addEventListener("click", () => {
     els.richDoc.innerHTML = "";
+    els.prefaceText.value = "";
+    els.includePreface.checked = false;
+    updatePrefaceField();
     renderBook();
-    els.richDoc.focus();
+    const body = els.book.querySelector(".page:not(.page--title):not(.page--preface) .page__body");
+    if (body) body.focus();
   });
 
   window.addEventListener("keydown", (e) => {
@@ -756,6 +866,7 @@ function bind() {
 }
 
 bind();
+updatePrefaceField();
 try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch (e) {}
 renderBook();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderBook);

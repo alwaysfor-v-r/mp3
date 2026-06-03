@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=18" />
+  <link rel="stylesheet" href="styles.css?v=19" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -48,9 +48,42 @@
           <input id="bookTitle" class="field__input" type="text" placeholder="예) 비 오는 날의 약속" />
         </label>
         <label class="field">
-          <span class="field__label">부제 / 저자 (선택)</span>
+          <span class="field__label">저자 (선택)</span>
           <input id="bookAuthor" class="field__input" type="text" placeholder="예) written by ___" />
         </label>
+
+        <h2 class="panel__heading">앞장</h2>
+
+        <label class="field">
+          <span class="field__label">표지(제목) 페이지</span>
+          <select id="titleStyle" class="field__input">
+            <option value="classic" selected>클래식 — 가운데 정렬</option>
+            <option value="minimal">미니멀 — 위·아래 배치</option>
+            <option value="cover">표지형 — 큰 제목</option>
+            <option value="ornate">장식 — 소품 장식</option>
+            <option value="none">없음</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field__label">부제 (선택)</span>
+          <input id="titleSubtitle" class="field__input" type="text" placeholder="예) 제1장 · 비" />
+        </label>
+        <label class="field">
+          <span class="field__label">아래 줄 (연도·회차 등)</span>
+          <input id="titleMeta" class="field__input" type="text" placeholder="예) 2026 · 1부" />
+        </label>
+
+        <label class="field field--check">
+          <input id="includePreface" type="checkbox" />
+          <span>서문 페이지 넣기</span>
+        </label>
+        <label class="field" id="prefaceField" hidden>
+          <span class="field__label">서문</span>
+          <textarea id="prefaceText" class="field__input preface-box" rows="7" spellcheck="false"
+            placeholder="서문을 입력하세요. 빈 줄로 문단을 나눕니다."></textarea>
+        </label>
+
+        <h2 class="panel__heading">본문 서식</h2>
 
         <div class="field field--row">
           <label class="field">
@@ -197,6 +230,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>
