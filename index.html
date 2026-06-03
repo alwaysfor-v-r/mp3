@@ -186,10 +186,14 @@
 
       <div class="stage" id="stage">
         <button class="nav nav--prev no-print" id="prevBtn" type="button" aria-label="이전 쪽">‹</button>
-        <!-- 스크롤·편집 모드: 바로 편집하는 시트 -->
+        <!-- 스크롤·편집 모드: 바로 편집하는 시트(책 페이지 모양) -->
         <div id="sheetWrap" class="sheetwrap size-a5">
-          <div id="richDoc" class="sheet body" contenteditable="true" spellcheck="false"
-            data-ph="여기에 롤플레이 로그를 바로 붙여넣거나 입력하세요."></div>
+          <div class="sheet">
+            <div class="page__head" id="sheetHead"></div>
+            <div id="richDoc" class="page__body body" contenteditable="true" spellcheck="false"
+              data-ph="여기에 롤플레이 로그를 바로 붙여넣거나 입력하세요."></div>
+            <div class="page__num" id="sheetNum"></div>
+          </div>
         </div>
         <!-- 넘기기 / PDF 모드: 페이지 분할된 책 -->
         <div id="book" class="book size-a5"></div>

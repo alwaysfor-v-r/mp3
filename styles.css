@@ -290,13 +290,16 @@ html, body {
 /* ===== 바로 편집 시트 (스크롤·편집 모드) ===== */
 .sheetwrap { padding: 32px 24px 90px; display: flex; justify-content: center; }
 .sheet {
+  display: flex; flex-direction: column; flex: 0 0 auto;
   background: var(--book-paper); color: var(--book-ink);
-  box-shadow: 0 6px 24px rgba(0,0,0,.14); outline: none; flex: 0 0 auto;
+  box-shadow: 0 6px 24px rgba(0,0,0,.14);
 }
 .size-a5 .sheet { width: 148mm; min-height: 210mm; padding: 20mm 18mm 15mm; }
 .size-a4 .sheet { width: 210mm; min-height: 297mm; padding: 25mm 24mm 20mm; }
 .size-b6 .sheet { width: 128mm; min-height: 182mm; padding: 17mm 15mm 13mm; }
-.sheet:empty::before {
+/* 편집 본문은 클립하지 않고 늘어남 */
+.sheet .page__body { flex: 1 1 auto; min-height: 0; overflow: visible; outline: none; }
+#richDoc:empty::before {
   content: attr(data-ph); color: var(--book-soft); font-style: italic;
 }
 

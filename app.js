@@ -28,6 +28,8 @@ const els = {
   indent: $("#indent"),
   richToggle: $("#richToggle"),
   sheetWrap: $("#sheetWrap"),
+  sheetHead: $("#sheetHead"),
+  sheetNum: $("#sheetNum"),
   richDoc: $("#richDoc"),
   rtoolbar: $("#rtoolbar"),
 };
@@ -461,9 +463,11 @@ function renderBook() {
   els.book.className = `book ${mods}`;
   els.book.style.setProperty("--book-font", els.fontFamily.value);
 
-  // 바로 편집 시트도 같은 판형/타이포 적용
+  // 바로 편집 시트도 같은 판형/타이포 + 머리말/쪽수 적용
   els.sheetWrap.className = `sheetwrap ${mods}`;
   els.sheetWrap.style.setProperty("--book-font", els.fontFamily.value);
+  els.sheetHead.textContent = opts.title || "";
+  els.sheetNum.textContent = (els.richDoc.textContent || "").trim() ? "1" : "";
 
   applyPrintPageSize(size.css);
 
