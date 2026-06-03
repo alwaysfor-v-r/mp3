@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=17" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -123,21 +123,11 @@
           <span>따옴표 없는 대사에 자동으로 “ ” 붙이기</span>
         </label>
 
-        <h2 class="panel__heading">로그 불러오기</h2>
-
         <p class="panel__hint" id="simpleHint">
-          <code>*지문*</code> · <code>"대사"</code> · 그냥 적은 줄 = 대사 ·
-          장면 구분 <code>***</code>. 붙여넣고 <b>불러오기</b>를 누르면
-          오른쪽 미리보기에 정리돼요. 미리보기에서 <b>바로 편집</b>도 됩니다.
+          오른쪽 미리보기에 <b>바로 입력·붙여넣기</b> 하세요.
+          <code>*지문*</code> · <code>"대사"</code> 형식으로 붙여넣으면 자동으로 정리되고,
+          <code>***</code> 줄은 장면 구분이 됩니다.
         </p>
-        <div class="logtools" id="logtools">
-          <button type="button" class="chip" data-act="narr">＊ 지문</button>
-          <button type="button" class="chip" data-act="dia">“ 대사</button>
-          <button type="button" class="chip" data-act="scene">⸻ 장면 구분</button>
-        </div>
-        <textarea id="logInput" class="logbox" spellcheck="false"
-          placeholder="여기에 롤플레이 로그를 붙여넣으세요...&#10;&#10;*그는 천천히 문을 열었다.&#10;빗물이 어깨를 적셨다.*&#10;&quot;늦어서 미안.&quot;&#10;정말 기다렸어."></textarea>
-        <button type="button" class="btn btn--block" id="importBtn">↳ 미리보기로 불러오기</button>
 
       </div>
     </section>
@@ -199,7 +189,7 @@
         <!-- 스크롤·편집 모드: 바로 편집하는 시트 -->
         <div id="sheetWrap" class="sheetwrap size-a5">
           <div id="richDoc" class="sheet body" contenteditable="true" spellcheck="false"
-            data-ph="여기에 바로 입력하거나, 왼쪽에 로그를 붙여넣고 ‘불러오기’를 누르세요."></div>
+            data-ph="여기에 롤플레이 로그를 바로 붙여넣거나 입력하세요."></div>
         </div>
         <!-- 넘기기 / PDF 모드: 페이지 분할된 책 -->
         <div id="book" class="book size-a5"></div>
@@ -208,6 +198,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

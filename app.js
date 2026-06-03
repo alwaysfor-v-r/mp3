@@ -16,7 +16,6 @@ const els = {
   fontFamily: $("#fontFamily"),
   dropcap: $("#dropcap"),
   autoQuote: $("#autoQuote"),
-  log: $("#logInput"),
   pdfBtn: $("#pdfBtn"),
   sampleBtn: $("#sampleBtn"),
   clearBtn: $("#clearBtn"),
@@ -28,15 +27,10 @@ const els = {
   spreadMode: $("#spreadMode"),
   indent: $("#indent"),
   richToggle: $("#richToggle"),
-  logtools: $("#logtools"),
-  simpleHint: $("#simpleHint"),
   sheetWrap: $("#sheetWrap"),
   richDoc: $("#richDoc"),
   rtoolbar: $("#rtoolbar"),
-  importBtn: $("#importBtn"),
 };
-
-let sheetDirty = false; // 미리보기 시트를 직접 편집했는지
 
 const PAGE_SIZE = {
   a5: { cls: "size-a5", css: "148mm 210mm" },
@@ -551,34 +545,6 @@ function saveAsPdf() {
   setTimeout(() => (document.title = prev), 500);
 }
 
-/* ---------- 편집 도구 ---------- */
-function wrapSelection(before, after, placeholder) {
-  const ta = els.log;
-  const s = ta.selectionStart, e = ta.selectionEnd;
-  const sel = ta.value.slice(s, e) || placeholder;
-  ta.value = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
-  const pos = s + before.length;
-  ta.focus();
-  ta.setSelectionRange(pos, pos + sel.length);
-  renderBook();
-}
-function wrapIn(ta, before, after, placeholder) {
-  const s = ta.selectionStart, e = ta.selectionEnd;
-  const sel = ta.value.slice(s, e) || placeholder;
-  ta.value = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
-  const pos = s + before.length;
-  ta.focus();
-  ta.setSelectionRange(pos, pos + sel.length);
-}
-function sceneIn(ta) {
-  const s = ta.selectionStart;
-  const ins = "\n***\n";
-  ta.value = ta.value.slice(0, s) + ins + ta.value.slice(s);
-  ta.focus();
-  ta.setSelectionRange(s + ins.length, s + ins.length);
-}
-function insertScene() { sceneIn(els.log); renderBook(); }
-
 /* ---------- 서식(워드) 편집 ---------- */
 let savedRange = null;
 function saveRange() {
@@ -593,28 +559,28 @@ function restoreRange() {
   s.removeAllRanges();
   s.addRange(savedRange);
 }
-function richHasContent() {
-  const t = (els.richDoc.textContent || "").trim();
-  return t.length > 0;
-}
-function seedRichFromText() {
-  const blocks = parseLog(els.log.value);
+/* 로그 텍스트 → 서식 HTML (지문/대사/장면 자동 정리) */
+function logToHtml(text) {
+  const blocks = parseLog(text);
   const autoQuote = els.autoQuote.checked;
-  const html = blocks
+  return blocks
     .map((b) => {
       if (b.type === "scene") return '<p class="scene">·  ·  ·</p>';
-      const text = b.tokens
-        .map((t) => {
-          const inner = escapeHtml(t.text);
-          if (t.type === "narration") return `<span class="narration">${inner}</span>`;
-          const show = t.quoted || autoQuote;
+      const t = b.tokens
+        .map((tk) => {
+          const inner = escapeHtml(tk.text);
+          if (tk.type === "narration") return `<span class="narration">${inner}</span>`;
+          const show = tk.quoted || autoQuote;
           return `<span class="dialogue">${show ? `“${inner}”` : inner}</span>`;
         })
         .join(" ");
-      return `<p>${text || "<br>"}</p>`;
+      return `<p>${t || "<br>"}</p>`;
     })
     .join("");
-  els.richDoc.innerHTML = html;
+}
+function loadLogIntoSheet(text) {
+  els.richDoc.innerHTML = logToHtml(text);
+  renderBook();
 }
 function execRich(cmd, val) {
   els.richDoc.focus();
@@ -656,18 +622,8 @@ function setRichMode(on) {
 let timer = null;
 const schedule = () => { clearTimeout(timer); timer = setTimeout(renderBook, 130); };
 
-function importToSheet() {
-  seedRichFromText();
-  sheetDirty = false;
-  renderBook();
-}
-
 function bind() {
   [els.title, els.author].forEach((el) => el.addEventListener("input", schedule));
-  // 왼쪽 로그: 시트를 직접 고치기 전이면 입력하는 대로 미리보기에 반영
-  els.log.addEventListener("input", () => {
-    if (!sheetDirty) { seedRichFromText(); schedule(); }
-  });
   [els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent].forEach((el) =>
     el.addEventListener("change", renderBook)
   );
@@ -687,22 +643,23 @@ function bind() {
   els.nextBtn.addEventListener("click", () => go(1));
   window.addEventListener("resize", () => { if (viewMode === "flip" && spreadOn) updateView(); });
 
-  document.querySelectorAll(".chip[data-act]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      const act = btn.dataset.act;
-      if (act === "narr") wrapSelection("*", "*", "지문을 입력");
-      else if (act === "dia") wrapSelection('"', '"', "대사를 입력");
-      else if (act === "scene") insertScene();
-    })
-  );
-
   els.richToggle.addEventListener("change", (e) => setRichMode(e.target.checked));
-  els.importBtn.addEventListener("click", () => { importToSheet(); els.richDoc.focus(); });
 
   // 미리보기 시트 = 바로 편집
-  els.richDoc.addEventListener("input", () => { sheetDirty = true; schedule(); });
+  els.richDoc.addEventListener("input", schedule);
   ["keyup", "mouseup"].forEach((ev) => els.richDoc.addEventListener(ev, saveRange));
   els.richDoc.addEventListener("blur", saveRange);
+
+  // 로그를 그대로 붙여넣으면 지문/대사/장면을 자동 정리
+  els.richDoc.addEventListener("paste", (e) => {
+    const text = (e.clipboardData || window.clipboardData)?.getData("text/plain");
+    if (!text) return;
+    e.preventDefault();
+    const html = logToHtml(text);
+    try { document.execCommand("insertHTML", false, html); }
+    catch (err) { els.richDoc.innerHTML += html; }
+    schedule();
+  });
 
   // 서식 툴바
   els.rtoolbar.querySelectorAll("[data-cmd]").forEach((el) => {
@@ -724,22 +681,21 @@ function bind() {
 
   els.pdfBtn.addEventListener("click", saveAsPdf);
   els.sampleBtn.addEventListener("click", () => {
-    els.log.value = SAMPLE;
     if (!els.title.value) els.title.value = "비 오는 날의 약속";
-    importToSheet();
+    loadLogIntoSheet(SAMPLE);
+    els.richDoc.focus();
   });
   els.clearBtn.addEventListener("click", () => {
-    els.log.value = "";
     els.richDoc.innerHTML = "";
-    sheetDirty = false;
     renderBook();
-    els.log.focus();
+    els.richDoc.focus();
   });
 
   window.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") { e.preventDefault(); saveAsPdf(); return; }
-    const typing = document.activeElement === els.log ||
-      document.activeElement === els.richDoc || els.richDoc.contains(document.activeElement);
+    const ae = document.activeElement;
+    const typing = ae === els.richDoc || els.richDoc.contains(ae) ||
+      (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT"));
     if (viewMode === "flip" && !typing) {
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); go(1); }
       else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); go(-1); }
