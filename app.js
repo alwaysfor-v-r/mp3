@@ -13,6 +13,14 @@ const els = {
   author: $("#bookAuthor"),
   titleSubtitle: $("#titleSubtitle"),
   titleMeta: $("#titleMeta"),
+  useTitle: $("#useTitle"),
+  useAuthor: $("#useAuthor"),
+  useSubtitle: $("#useSubtitle"),
+  useMeta: $("#useMeta"),
+  titleField: $("#titleField"),
+  authorField: $("#authorField"),
+  subtitleField: $("#subtitleField"),
+  metaField: $("#metaField"),
   includeCover: $("#includeCover"),
   coverStyle: $("#coverStyle"),
   coverImage: $("#coverImage"),
@@ -254,7 +262,7 @@ function titlePageParts(opts) {
   const author = opts.author
     ? `<div class="title-wrap__author">${escapeHtml(opts.author)}</div>` : "";
   const rule = opts.author ? `<div class="title-wrap__rule"></div>` : "";
-  const h1 = `<h1 class="title-wrap__title">${escapeHtml(opts.title)}</h1>`;
+  const h1 = opts.title ? `<h1 class="title-wrap__title">${escapeHtml(opts.title)}</h1>` : "";
   return { h1, sub, meta, author, rule };
 }
 
@@ -301,7 +309,7 @@ function makeCoverPage(opts) {
   const page = document.createElement("section");
   page.className = `page page--cover page--cover-${style}`;
   const { h1, sub, author } = titlePageParts(opts);
-  const titleHtml = `<h1 class="cover-wrap__title">${escapeHtml(opts.title)}</h1>`;
+  const titleHtml = opts.title ? `<h1 class="cover-wrap__title">${escapeHtml(opts.title)}</h1>` : "";
   const subHtml = opts.titleSubtitle ? `<p class="cover-wrap__sub">${escapeHtml(opts.titleSubtitle)}</p>` : "";
   const authorHtml = opts.author ? `<p class="cover-wrap__author">${escapeHtml(opts.author)}</p>` : "";
 
@@ -327,7 +335,7 @@ function makeTitleLeafPage(opts) {
   page.className = `page page--titleleaf page--titleleaf-${style}`;
   page.innerHTML = `
     <div class="titleleaf-wrap">
-      <h1 class="titleleaf-wrap__title">${escapeHtml(opts.title)}</h1>
+      ${opts.title ? `<h1 class="titleleaf-wrap__title">${escapeHtml(opts.title)}</h1>` : ""}
     </div>`;
   return page;
 }
@@ -432,7 +440,6 @@ function makeColophonPage(opts) {
 }
 
 function appendFrontMatter(opts) {
-  if (!opts.title) return;
   const add = (p) => { if (p) els.book.appendChild(p); };
   if (opts.includeCover) add(makeCoverPage(opts));
   if (opts.includeTitleLeaf) add(makeTitleLeafPage(opts));
@@ -707,10 +714,10 @@ function paginateRich(blocks, opts) {
 /* ---------- 렌더 ---------- */
 function getOpts() {
   return {
-    title: els.title.value.trim(),
-    author: els.author.value.trim(),
-    titleSubtitle: els.titleSubtitle.value.trim(),
-    titleMeta: els.titleMeta.value.trim(),
+    title: els.useTitle.checked ? els.title.value.trim() : "",
+    author: els.useAuthor.checked ? els.author.value.trim() : "",
+    titleSubtitle: els.useSubtitle.checked ? els.titleSubtitle.value.trim() : "",
+    titleMeta: els.useMeta.checked ? els.titleMeta.value.trim() : "",
     includeCover: els.includeCover.checked,
     coverStyle: els.coverStyle.value,
     coverImage: coverImageDataUrl,
@@ -750,6 +757,11 @@ function isHtmlMode(sel) {
 }
 
 function updateMatterFields() {
+  if (els.titleField) els.titleField.hidden = !els.useTitle.checked;
+  if (els.authorField) els.authorField.hidden = !els.useAuthor.checked;
+  if (els.subtitleField) els.subtitleField.hidden = !els.useSubtitle.checked;
+  if (els.metaField) els.metaField.hidden = !els.useMeta.checked;
+
   els.prefaceField.hidden = !els.includePreface.checked;
   els.tocField.hidden = !els.includeToc.checked;
   els.epilogueField.hidden = !els.includeEpilogue.checked;
@@ -1087,6 +1099,7 @@ function bind() {
     els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent,
     els.includeCover, els.includeTitleLeaf, els.includeHalfTitle,
     els.includePreface, els.includeToc, els.includeEpilogue, els.includeColophon,
+    els.useTitle, els.useAuthor, els.useSubtitle, els.useMeta,
   ];
   matterChanges.forEach((el) => el && el.addEventListener("change", () => { updateMatterFields(); renderBook(); }));
 
@@ -1162,6 +1175,9 @@ function bind() {
 
   els.pdfBtn.addEventListener("click", saveAsPdf);
   els.sampleBtn.addEventListener("click", () => {
+    els.useTitle.checked = true;
+    els.useSubtitle.checked = true;
+    updateMatterFields();
     if (!els.title.value) els.title.value = "비 오는 날의 약속";
     if (!els.titleSubtitle.value) els.titleSubtitle.value = "롤플레이 로그 회지";
     els.coverStyle.value = "text-classic";
@@ -1186,6 +1202,10 @@ function bind() {
     els.tocText.value = "";
     els.epilogueText.value = "";
     els.colophonText.value = "";
+    els.useTitle.checked = false;
+    els.useAuthor.checked = false;
+    els.useSubtitle.checked = false;
+    els.useMeta.checked = false;
     els.coverHtml.value = "";
     els.titleLeafHtml.value = "";
     els.halfTitleHtml.value = "";

@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="styles.css?v=23" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -122,22 +122,25 @@
 
         <h2 class="panel__heading panel__heading--section">책 구성</h2>
 
-        <label class="field">
-          <span class="field__label">제목</span>
+        <label class="field field--check"><input id="useTitle" type="checkbox" checked /><span>제목</span></label>
+        <div class="matter-detail" id="titleField">
           <input id="bookTitle" class="field__input" type="text" placeholder="예) 비 오는 날의 약속" />
-        </label>
-        <label class="field">
-          <span class="field__label">저자 (선택)</span>
+        </div>
+
+        <label class="field field--check"><input id="useAuthor" type="checkbox" /><span>저자</span></label>
+        <div class="matter-detail" id="authorField" hidden>
           <input id="bookAuthor" class="field__input" type="text" placeholder="예) written by ___" />
-        </label>
-        <label class="field">
-          <span class="field__label">부제 (약표제지·표지용)</span>
+        </div>
+
+        <label class="field field--check"><input id="useSubtitle" type="checkbox" /><span>부제 (약표제지·표지)</span></label>
+        <div class="matter-detail" id="subtitleField" hidden>
           <input id="titleSubtitle" class="field__input" type="text" placeholder="예) 제1장 · 비" />
-        </label>
-        <label class="field">
-          <span class="field__label">아래 줄 (연도·회차 등)</span>
+        </div>
+
+        <label class="field field--check"><input id="useMeta" type="checkbox" /><span>아래 줄 (연도·회차 등)</span></label>
+        <div class="matter-detail" id="metaField" hidden>
           <input id="titleMeta" class="field__input" type="text" placeholder="예) 2026 · 1부" />
-        </label>
+        </div>
 
         <p class="panel__hint panel__hint--compact">
           표지 → 표제지 → 약표제지 → 서문 → 목차 → <b>본문</b> → 참고 → 간기면
@@ -334,6 +337,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>
