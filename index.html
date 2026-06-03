@@ -41,7 +41,86 @@
     <!-- ===== 설정 / 편집 패널 ===== -->
     <section class="panel no-print" aria-label="설정">
       <div class="panel__scroll">
-        <h2 class="panel__heading">책 정보</h2>
+        <h2 class="panel__heading">본문 서식</h2>
+
+        <div class="field field--row">
+          <label class="field">
+            <span class="field__label">판형</span>
+            <select id="pageSize" class="field__input">
+              <option value="a5" selected>A5 (책 느낌)</option>
+              <option value="a4">A4</option>
+              <option value="b6">B6 (문고본)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">글씨 크기</span>
+            <select id="fontSize" class="field__input">
+              <option value="small">작게</option>
+              <option value="medium" selected>보통</option>
+              <option value="large">크게</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field__label">본문 글꼴</span>
+          <select id="fontFamily" class="field__input">
+            <option value="'KoPubWorld Batang', serif" selected>KoPubWorld 바탕 (출판 명조)</option>
+            <option value="'Pretendard Variable', 'Pretendard', sans-serif">Pretendard (산세리프)</option>
+            <option value="'Nanum Myeongjo', serif">나눔명조</option>
+            <option value="'Noto Serif KR', serif">본명조</option>
+          </select>
+        </label>
+
+        <div class="field">
+          <span class="field__label">지문 표현 방식</span>
+          <div class="seg" id="narrationStyle">
+            <label class="seg__opt"><input type="radio" name="narr" value="plain" checked /><span>일반 문장</span></label>
+            <label class="seg__opt"><input type="radio" name="narr" value="italic" /><span>기울임</span></label>
+            <label class="seg__opt"><input type="radio" name="narr" value="muted" /><span>흐리게</span></label>
+          </div>
+        </div>
+
+        <div class="field field--row">
+          <label class="field">
+            <span class="field__label">문단 간격</span>
+            <select id="paraSpace" class="field__input">
+              <option value="none" selected>없음(소설체)</option>
+              <option value="sm">좁게</option>
+              <option value="md">보통</option>
+              <option value="lg">넓게</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">첫 장 위 여백</span>
+            <select id="firstGap" class="field__input">
+              <option value="none" selected>없음</option>
+              <option value="md">보통</option>
+              <option value="lg">많이</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field field--check">
+          <input id="indent" type="checkbox" checked />
+          <span>문단 첫 줄 들여쓰기</span>
+        </label>
+        <label class="field field--check">
+          <input id="dropcap" type="checkbox" />
+          <span>첫 문단 첫 글자 키우기(드롭캡)</span>
+        </label>
+        <label class="field field--check">
+          <input id="autoQuote" type="checkbox" checked />
+          <span>따옴표 없는 대사에 자동으로 “ ” 붙이기</span>
+        </label>
+
+        <p class="panel__hint" id="simpleHint">
+          오른쪽 미리보기 <b>본문 페이지</b>를 클릭해 입력·붙여넣기 하세요.
+          <code>*지문*</code> · <code>"대사"</code> 형식은 자동 정리,
+          <code>***</code> 줄은 장면 구분입니다.
+        </p>
+
+        <h2 class="panel__heading panel__heading--section">책 구성</h2>
 
         <label class="field">
           <span class="field__label">제목</span>
@@ -51,7 +130,6 @@
           <span class="field__label">저자 (선택)</span>
           <input id="bookAuthor" class="field__input" type="text" placeholder="예) written by ___" />
         </label>
-
         <label class="field">
           <span class="field__label">부제 (약표제지·표지용)</span>
           <input id="titleSubtitle" class="field__input" type="text" placeholder="예) 제1장 · 비" />
@@ -61,7 +139,6 @@
           <input id="titleMeta" class="field__input" type="text" placeholder="예) 2026 · 1부" />
         </label>
 
-        <h2 class="panel__heading">책 구성</h2>
         <p class="panel__hint panel__hint--compact">
           표지 → 표제지 → 약표제지 → 서문 → 목차 → <b>본문</b> → 참고 → 간기면
         </p>
@@ -184,85 +261,6 @@
             <textarea id="colophonHtml" class="field__input code-box" rows="6" spellcheck="false"></textarea>
           </label>
         </div>
-
-        <h2 class="panel__heading">본문 서식</h2>
-
-        <div class="field field--row">
-          <label class="field">
-            <span class="field__label">판형</span>
-            <select id="pageSize" class="field__input">
-              <option value="a5" selected>A5 (책 느낌)</option>
-              <option value="a4">A4</option>
-              <option value="b6">B6 (문고본)</option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="field__label">글씨 크기</span>
-            <select id="fontSize" class="field__input">
-              <option value="small">작게</option>
-              <option value="medium" selected>보통</option>
-              <option value="large">크게</option>
-            </select>
-          </label>
-        </div>
-
-        <label class="field">
-          <span class="field__label">본문 글꼴</span>
-          <select id="fontFamily" class="field__input">
-            <option value="'KoPubWorld Batang', serif" selected>KoPubWorld 바탕 (출판 명조)</option>
-            <option value="'Pretendard Variable', 'Pretendard', sans-serif">Pretendard (산세리프)</option>
-            <option value="'Nanum Myeongjo', serif">나눔명조</option>
-            <option value="'Noto Serif KR', serif">본명조</option>
-          </select>
-        </label>
-
-        <div class="field">
-          <span class="field__label">지문 표현 방식</span>
-          <div class="seg" id="narrationStyle">
-            <label class="seg__opt"><input type="radio" name="narr" value="plain" checked /><span>일반 문장</span></label>
-            <label class="seg__opt"><input type="radio" name="narr" value="italic" /><span>기울임</span></label>
-            <label class="seg__opt"><input type="radio" name="narr" value="muted" /><span>흐리게</span></label>
-          </div>
-        </div>
-
-        <div class="field field--row">
-          <label class="field">
-            <span class="field__label">문단 간격</span>
-            <select id="paraSpace" class="field__input">
-              <option value="none" selected>없음(소설체)</option>
-              <option value="sm">좁게</option>
-              <option value="md">보통</option>
-              <option value="lg">넓게</option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="field__label">첫 장 위 여백</span>
-            <select id="firstGap" class="field__input">
-              <option value="none" selected>없음</option>
-              <option value="md">보통</option>
-              <option value="lg">많이</option>
-            </select>
-          </label>
-        </div>
-
-        <label class="field field--check">
-          <input id="indent" type="checkbox" checked />
-          <span>문단 첫 줄 들여쓰기</span>
-        </label>
-        <label class="field field--check">
-          <input id="dropcap" type="checkbox" />
-          <span>첫 문단 첫 글자 키우기(드롭캡)</span>
-        </label>
-        <label class="field field--check">
-          <input id="autoQuote" type="checkbox" checked />
-          <span>따옴표 없는 대사에 자동으로 “ ” 붙이기</span>
-        </label>
-
-        <p class="panel__hint" id="simpleHint">
-          오른쪽 미리보기 <b>본문 페이지</b>를 클릭해 입력·붙여넣기 하세요.
-          <code>*지문*</code> · <code>"대사"</code> 형식은 자동 정리,
-          <code>***</code> 줄은 장면 구분입니다.
-        </p>
 
       </div>
     </section>
