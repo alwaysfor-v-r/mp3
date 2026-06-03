@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -115,7 +115,7 @@
         </label>
 
         <p class="panel__hint" id="simpleHint">
-          오른쪽 미리보기 <b>본문 페이지</b>를 클릭해 입력·붙여넣기 하세요.
+          미리보기 <b>본문·서문 페이지</b>를 클릭해 입력·붙여넣기 (스크롤·넘기기 동일).
           <code>*지문*</code> · <code>"대사"</code> 형식은 자동 정리,
           <code>***</code> 줄은 장면 구분입니다.
         </p>
@@ -273,7 +273,7 @@
       <div class="viewbar no-print">
         <div class="viewbar__left">
           <div class="seg seg--view" id="viewMode">
-            <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤·편집</span></label>
+            <label class="seg__opt"><input type="radio" name="view" value="scroll" checked /><span>스크롤</span></label>
             <label class="seg__opt"><input type="radio" name="view" value="flip" /><span>넘기기</span></label>
           </div>
           <div class="seg seg--spread" id="spreadMode" hidden>
@@ -337,6 +337,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

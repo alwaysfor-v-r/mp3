@@ -946,10 +946,9 @@ function pasteLogInto(target, text) {
 }
 
 function applyPageEditability() {
-  const editable = viewMode !== "flip";
   const matterKinds = new Set(["preface", "toc", "epilogue"]);
   els.book.querySelectorAll(".page--main .page__body, .page--matter .matter-body").forEach((body) => {
-    body.contentEditable = editable ? "true" : "false";
+    body.contentEditable = "true";
     if (body.dataset.editBound) return;
     body.dataset.editBound = "1";
     body.addEventListener("input", () => {
@@ -1067,16 +1066,6 @@ function applyFontSizePx(px) {
 function setRichMode(on) {
   useRich = on;
   els.rtoolbar.hidden = !on;
-  if (on) {
-    // 서식을 켜면 편집 화면(스크롤·편집)으로 전환
-    if (viewMode !== "scroll") {
-      viewMode = "scroll";
-      const r = document.querySelector('input[name="view"][value="scroll"]');
-      if (r) r.checked = true;
-      updateView();
-    }
-    els.richDoc.focus();
-  }
 }
 
 /* ---------- 이벤트 ---------- */
