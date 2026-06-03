@@ -230,13 +230,22 @@ html, body {
 /* 표지 */
 .page--cover {
   padding: 0 !important; overflow: hidden; position: relative;
-  background-size: cover; background-position: center; background-color: #1a1a18;
+  background-color: var(--book-paper); color: var(--book-ink);
+}
+.page--cover-image-full,
+.page--cover-image-band {
+  background-size: cover; background-position: center; background-color: #2a2a28;
 }
 .page--cover-text-classic,
 .page--cover-text-modern,
-.page--cover-text-night { padding: 20mm 18mm !important; display: flex; align-items: center; justify-content: center; }
+.page--cover-text-night,
+.page--cover-html {
+  padding: 20mm 18mm !important; display: flex; align-items: center; justify-content: center;
+}
+.page--cover-text-classic,
+.page--cover-text-modern { background: var(--book-paper); color: var(--book-ink); }
 .page--cover-text-night { background: #1a1a18; color: #e8e4dc; }
-.cover-wrap { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.cover-wrap { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: inherit; }
 .page--cover-image-band .cover-wrap { justify-content: flex-end; padding-bottom: 14mm; }
 .page--cover-image-band .cover-wrap__band {
   width: 100%; padding: 10mm 8mm; background: rgba(255,255,255,.92); color: var(--book-ink);
@@ -244,10 +253,16 @@ html, body {
 .page--cover-text-night .cover-wrap__title { color: #e8e4dc; }
 .page--cover-text-night .cover-wrap__sub,
 .page--cover-text-night .cover-wrap__author { color: #9a958c; }
+.page--cover-text-classic .cover-wrap__title,
+.page--cover-text-modern .cover-wrap__title { color: var(--book-ink); }
+.page--cover-text-classic .cover-wrap__sub,
+.page--cover-text-classic .cover-wrap__author,
+.page--cover-text-modern .cover-wrap__sub,
+.page--cover-text-modern .cover-wrap__author { color: var(--book-soft); }
 .page--cover-text-modern .cover-wrap { font-family: var(--ui-font); }
 .cover-wrap__title { font-family: var(--book-font); font-weight: 600; font-size: 24pt; margin: 0; line-height: 1.35; }
-.cover-wrap__sub { margin: .4em 0 0; font-size: 11pt; opacity: .85; }
-.cover-wrap__author { margin-top: 1.2em; font-size: 10pt; letter-spacing: .08em; opacity: .75; }
+.cover-wrap__sub { margin: .4em 0 0; font-size: 11pt; }
+.cover-wrap__author { margin-top: 1.2em; font-size: 10pt; letter-spacing: .08em; }
 
 /* 표제지 (제목만) */
 .page--titleleaf { justify-content: center; align-items: center; text-align: center; }

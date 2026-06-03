@@ -37,8 +37,24 @@ const els = {
   colophonText: $("#colophonText"),
   colophonStyle: $("#colophonStyle"),
   colophonField: $("#colophonField"),
-  customFrontHtml: $("#customFrontHtml"),
-  customBackHtml: $("#customBackHtml"),
+  colophonHtml: $("#colophonHtml"),
+  coverHtml: $("#coverHtml"),
+  coverHtmlField: $("#coverHtmlField"),
+  coverImageRow: $("#coverImageRow"),
+  titleLeafHtml: $("#titleLeafHtml"),
+  titleLeafHtmlField: $("#titleLeafHtmlField"),
+  halfTitleHtml: $("#halfTitleHtml"),
+  halfTitleHtmlField: $("#halfTitleHtmlField"),
+  prefaceStyle: $("#prefaceStyle"),
+  prefaceHtml: $("#prefaceHtml"),
+  prefaceHtmlField: $("#prefaceHtmlField"),
+  tocStyle: $("#tocStyle"),
+  tocHtml: $("#tocHtml"),
+  tocHtmlField: $("#tocHtmlField"),
+  epilogueStyle: $("#epilogueStyle"),
+  epilogueHtml: $("#epilogueHtml"),
+  epilogueHtmlField: $("#epilogueHtmlField"),
+  colophonHtmlField: $("#colophonHtmlField"),
   imgInsert: $("#imgInsert"),
   pageSize: $("#pageSize"),
   fontSize: $("#fontSize"),
@@ -63,7 +79,6 @@ const els = {
 let repaginateTimer = null;
 let coverImageDataUrl = null;
 
-const CUSTOM_PAGE_SPLIT = /\n\s*---\s*\n/;
 const SANITIZE_TAGS = new Set([
   "P", "BR", "DIV", "SPAN", "H1", "H2", "H3", "H4", "EM", "STRONG", "B", "I", "U",
   "BLOCKQUOTE", "UL", "OL", "LI", "HR", "IMG", "FIGURE", "FIGCAPTION", "A", "SUB", "SUP",
@@ -266,12 +281,23 @@ function sanitizeHtml(raw) {
   return (doc.body.firstElementChild || doc.body).innerHTML;
 }
 
-function splitCustomPages(raw) {
-  return (raw || "").split(CUSTOM_PAGE_SPLIT).map((s) => s.trim()).filter(Boolean);
+function makeSectionHtmlPage(pageClass, html) {
+  const clean = sanitizeHtml(html);
+  if (!clean) return null;
+  const page = document.createElement("section");
+  page.className = `page ${pageClass}`;
+  const inner = document.createElement("div");
+  inner.className = "custom-html body";
+  inner.innerHTML = clean;
+  page.appendChild(inner);
+  return page;
 }
 
 function makeCoverPage(opts) {
   const style = opts.coverStyle || "text-classic";
+  if (style === "html") {
+    return makeSectionHtmlPage("page--cover page--cover-html", opts.coverHtml);
+  }
   const page = document.createElement("section");
   page.className = `page page--cover page--cover-${style}`;
   const { h1, sub, author } = titlePageParts(opts);
@@ -294,6 +320,9 @@ function makeCoverPage(opts) {
 
 function makeTitleLeafPage(opts) {
   const style = opts.titleLeafStyle || "center";
+  if (style === "html") {
+    return makeSectionHtmlPage("page--titleleaf page--titleleaf-html", opts.titleLeafHtml);
+  }
   const page = document.createElement("section");
   page.className = `page page--titleleaf page--titleleaf-${style}`;
   page.innerHTML = `
@@ -305,6 +334,9 @@ function makeTitleLeafPage(opts) {
 
 function makeHalfTitlePage(opts) {
   const style = opts.halfTitleStyle || "classic";
+  if (style === "html") {
+    return makeSectionHtmlPage("page--halftitle page--halftitle-html", opts.halfTitleHtml);
+  }
   const page = document.createElement("section");
   page.className = `page page--halftitle page--title page--title-${style} page--halftitle-${style}`;
   const { h1, sub, meta, author, rule } = titlePageParts(opts);
@@ -351,6 +383,9 @@ function parseTocLine(line) {
 }
 
 function makeTocPage(opts) {
+  if (opts.tocStyle === "html") {
+    return makeSectionHtmlPage("page--matter page--toc page--toc-html", opts.tocHtml);
+  }
   const lines = (opts.tocText || "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (!lines.length) return null;
   const page = document.createElement("section");
@@ -378,6 +413,9 @@ function makeTocPage(opts) {
 }
 
 function makeColophonPage(opts) {
+  if (opts.colophonStyle === "html") {
+    return makeSectionHtmlPage("page--matter page--colophon page--colophon-html", opts.colophonHtml);
+  }
   const paras = (opts.colophonText || "").split(/\n+/).map((s) => s.trim()).filter(Boolean);
   if (!paras.length) return null;
   const page = document.createElement("section");
@@ -393,52 +431,32 @@ function makeColophonPage(opts) {
   return page;
 }
 
-function makeCustomPage(html, slot) {
-  const clean = sanitizeHtml(html);
-  if (!clean) return null;
-  const page = document.createElement("section");
-  page.className = `page page--custom page--custom-${slot}`;
-  const inner = document.createElement("div");
-  inner.className = "custom-html body";
-  inner.innerHTML = clean;
-  page.appendChild(inner);
-  return page;
-}
-
 function appendFrontMatter(opts) {
   if (!opts.title) return;
-  if (opts.includeCover) els.book.appendChild(makeCoverPage(opts));
-  if (opts.includeTitleLeaf) els.book.appendChild(makeTitleLeafPage(opts));
-  if (opts.includeHalfTitle && opts.halfTitleStyle !== "none") {
-    els.book.appendChild(makeHalfTitlePage(opts));
-  }
-  splitCustomPages(opts.customFrontHtml).forEach((html) => {
-    const p = makeCustomPage(html, "front");
-    if (p) els.book.appendChild(p);
-  });
+  const add = (p) => { if (p) els.book.appendChild(p); };
+  if (opts.includeCover) add(makeCoverPage(opts));
+  if (opts.includeTitleLeaf) add(makeTitleLeafPage(opts));
+  if (opts.includeHalfTitle) add(makeHalfTitlePage(opts));
   if (opts.includePreface) {
-    const p = makeMatterTextPage("preface", opts.prefaceLabel || "서문", opts.prefaceText);
-    if (p) els.book.appendChild(p);
+    if (opts.prefaceStyle === "html") {
+      add(makeSectionHtmlPage("page--matter page--preface page--preface-html", opts.prefaceHtml));
+    } else {
+      add(makeMatterTextPage("preface", opts.prefaceLabel || "서문", opts.prefaceText));
+    }
   }
-  if (opts.includeToc) {
-    const p = makeTocPage(opts);
-    if (p) els.book.appendChild(p);
-  }
+  if (opts.includeToc) add(makeTocPage(opts));
 }
 
 function appendBackMatter(opts) {
+  const add = (p) => { if (p) els.book.appendChild(p); };
   if (opts.includeEpilogue) {
-    const p = makeMatterTextPage("epilogue", opts.epilogueLabel || "참고", opts.epilogueText);
-    if (p) els.book.appendChild(p);
+    if (opts.epilogueStyle === "html") {
+      add(makeSectionHtmlPage("page--matter page--epilogue page--epilogue-html", opts.epilogueHtml));
+    } else {
+      add(makeMatterTextPage("epilogue", opts.epilogueLabel || "참고", opts.epilogueText));
+    }
   }
-  if (opts.includeColophon) {
-    const p = makeColophonPage(opts);
-    if (p) els.book.appendChild(p);
-  }
-  splitCustomPages(opts.customBackHtml).forEach((html) => {
-    const p = makeCustomPage(html, "back");
-    if (p) els.book.appendChild(p);
-  });
+  if (opts.includeColophon) add(makeColophonPage(opts));
 }
 
 function makeContentPage(opts, pageNum) {
@@ -711,12 +729,24 @@ function getOpts() {
     includeColophon: els.includeColophon.checked,
     colophonText: els.colophonText.value,
     colophonStyle: els.colophonStyle.value,
-    customFrontHtml: els.customFrontHtml.value,
-    customBackHtml: els.customBackHtml.value,
+    colophonHtml: els.colophonHtml.value,
+    coverHtml: els.coverHtml.value,
+    titleLeafHtml: els.titleLeafHtml.value,
+    halfTitleHtml: els.halfTitleHtml.value,
+    prefaceStyle: els.prefaceStyle.value,
+    prefaceHtml: els.prefaceHtml.value,
+    tocStyle: els.tocStyle.value,
+    tocHtml: els.tocHtml.value,
+    epilogueStyle: els.epilogueStyle.value,
+    epilogueHtml: els.epilogueHtml.value,
     autoQuote: els.autoQuote.checked,
     dropcap: els.dropcap.checked,
     firstGap: els.firstGap.value,
   };
+}
+
+function isHtmlMode(sel) {
+  return sel && sel.value === "html";
 }
 
 function updateMatterFields() {
@@ -724,6 +754,32 @@ function updateMatterFields() {
   els.tocField.hidden = !els.includeToc.checked;
   els.epilogueField.hidden = !els.includeEpilogue.checked;
   els.colophonField.hidden = !els.includeColophon.checked;
+
+  const coverHtml = isHtmlMode(els.coverStyle);
+  els.coverHtmlField.hidden = !coverHtml;
+  if (els.coverImageRow) els.coverImageRow.hidden = coverHtml;
+
+  els.titleLeafHtmlField.hidden = !isHtmlMode(els.titleLeafStyle);
+  els.halfTitleHtmlField.hidden = !isHtmlMode(els.halfTitleStyle);
+
+  const preHtml = isHtmlMode(els.prefaceStyle);
+  els.prefaceHtmlField.hidden = !preHtml;
+  els.prefaceLabel.hidden = preHtml;
+  els.prefaceText.hidden = preHtml;
+
+  const tocHtml = isHtmlMode(els.tocStyle);
+  els.tocHtmlField.hidden = !tocHtml;
+  els.tocText.hidden = tocHtml;
+  if (els.tocFromBody) els.tocFromBody.hidden = tocHtml;
+
+  const epiHtml = isHtmlMode(els.epilogueStyle);
+  els.epilogueHtmlField.hidden = !epiHtml;
+  els.epilogueLabel.hidden = epiHtml;
+  els.epilogueText.hidden = epiHtml;
+
+  const colHtml = isHtmlMode(els.colophonStyle);
+  els.colophonHtmlField.hidden = !colHtml;
+  els.colophonText.hidden = colHtml;
 }
 
 function syncMatterFromBook(kind) {
@@ -1019,12 +1075,15 @@ function bind() {
   const matterInputs = [
     els.title, els.author, els.titleSubtitle, els.titleMeta,
     els.prefaceText, els.prefaceLabel, els.tocText, els.epilogueText, els.epilogueLabel,
-    els.colophonText, els.customFrontHtml, els.customBackHtml,
+    els.colophonText, els.colophonHtml,
+    els.coverHtml, els.titleLeafHtml, els.halfTitleHtml,
+    els.prefaceHtml, els.tocHtml, els.epilogueHtml,
   ];
   matterInputs.forEach((el) => el && el.addEventListener("input", schedule));
 
   const matterChanges = [
     els.coverStyle, els.titleLeafStyle, els.halfTitleStyle, els.colophonStyle,
+    els.prefaceStyle, els.tocStyle, els.epilogueStyle,
     els.pageSize, els.fontSize, els.fontFamily, els.dropcap, els.autoQuote, els.paraSpace, els.firstGap, els.indent,
     els.includeCover, els.includeTitleLeaf, els.includeHalfTitle,
     els.includePreface, els.includeToc, els.includeEpilogue, els.includeColophon,
@@ -1105,6 +1164,7 @@ function bind() {
   els.sampleBtn.addEventListener("click", () => {
     if (!els.title.value) els.title.value = "비 오는 날의 약속";
     if (!els.titleSubtitle.value) els.titleSubtitle.value = "롤플레이 로그 회지";
+    els.coverStyle.value = "text-classic";
     els.includeCover.checked = true;
     els.includeTitleLeaf.checked = true;
     els.includeHalfTitle.checked = true;
@@ -1126,8 +1186,13 @@ function bind() {
     els.tocText.value = "";
     els.epilogueText.value = "";
     els.colophonText.value = "";
-    els.customFrontHtml.value = "";
-    els.customBackHtml.value = "";
+    els.coverHtml.value = "";
+    els.titleLeafHtml.value = "";
+    els.halfTitleHtml.value = "";
+    els.prefaceHtml.value = "";
+    els.tocHtml.value = "";
+    els.epilogueHtml.value = "";
+    els.colophonHtml.value = "";
     coverImageDataUrl = null;
     els.coverImage.value = "";
     els.includePreface.checked = false;

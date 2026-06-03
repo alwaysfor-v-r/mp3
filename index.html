@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css?v=20" />
+  <link rel="stylesheet" href="styles.css?v=21" />
 </head>
 <body>
   <header class="topbar no-print">
@@ -76,13 +76,21 @@
               <option value="text-classic">글만 (클래식)</option>
               <option value="text-modern">글만 (모던)</option>
               <option value="text-night">글만 (다크)</option>
+              <option value="html">HTML</option>
             </select>
           </label>
-          <label class="field">
-            <span class="field__label">표지 사진</span>
-            <input id="coverImage" class="field__input" type="file" accept="image/*" />
+          <div id="coverImageRow">
+            <label class="field">
+              <span class="field__label">표지 사진</span>
+              <input id="coverImage" class="field__input" type="file" accept="image/*" />
+            </label>
+            <button type="button" class="btn btn--ghost btn--sm" id="clearCoverImage">표지 사진 제거</button>
+          </div>
+          <label class="field" id="coverHtmlField" hidden>
+            <span class="field__label">표지 HTML</span>
+            <textarea id="coverHtml" class="field__input code-box" rows="6" spellcheck="false"
+              placeholder="&lt;div style='text-align:center;padding-top:35mm'&gt;&lt;h1&gt;제목&lt;/h1&gt;&lt;/div&gt;"></textarea>
           </label>
-          <button type="button" class="btn btn--ghost btn--sm" id="clearCoverImage">표지 사진 제거</button>
         </div>
 
         <label class="field field--check"><input id="includeTitleLeaf" type="checkbox" checked /><span>② 표제지 (제목만)</span></label>
@@ -91,7 +99,12 @@
             <option value="center" selected>가운데</option>
             <option value="lower">아래쪽</option>
             <option value="minimal">미니멀</option>
+            <option value="html">HTML</option>
           </select>
+          <label class="field" id="titleLeafHtmlField" hidden>
+            <span class="field__label">표제지 HTML</span>
+            <textarea id="titleLeafHtml" class="field__input code-box" rows="5" spellcheck="false"></textarea>
+          </label>
         </div>
 
         <label class="field field--check"><input id="includeHalfTitle" type="checkbox" checked /><span>③ 약표제지 (제목+부제+저자)</span></label>
@@ -103,55 +116,74 @@
             <option value="ornate">장식</option>
             <option value="literary">문학 (세리프 여백)</option>
             <option value="modern">모던 (산세리프)</option>
-            <option value="none">없음</option>
+            <option value="html">HTML</option>
           </select>
+          <label class="field" id="halfTitleHtmlField" hidden>
+            <span class="field__label">약표제지 HTML</span>
+            <textarea id="halfTitleHtml" class="field__input code-box" rows="6" spellcheck="false"></textarea>
+          </label>
         </div>
 
         <label class="field field--check"><input id="includePreface" type="checkbox" /><span>④ 서문 (머리말·추천사 등)</span></label>
         <div class="matter-detail" id="prefaceField" hidden>
+          <select id="prefaceStyle" class="field__input">
+            <option value="text" selected>텍스트</option>
+            <option value="html">HTML</option>
+          </select>
           <input id="prefaceLabel" class="field__input" type="text" value="서문" placeholder="머리말 제목" />
           <textarea id="prefaceText" class="field__input preface-box" rows="5" spellcheck="false"
             placeholder="서문 본문. 빈 줄로 문단 구분."></textarea>
+          <label class="field" id="prefaceHtmlField" hidden>
+            <span class="field__label">서문 HTML</span>
+            <textarea id="prefaceHtml" class="field__input code-box" rows="6" spellcheck="false"></textarea>
+          </label>
         </div>
 
         <label class="field field--check"><input id="includeToc" type="checkbox" /><span>⑤ 목차</span></label>
         <div class="matter-detail" id="tocField" hidden>
+          <select id="tocStyle" class="field__input">
+            <option value="text" selected>목차 목록</option>
+            <option value="html">HTML</option>
+          </select>
           <textarea id="tocText" class="field__input preface-box" rows="5" spellcheck="false"
             placeholder="한 줄에 한 항목&#10;제1장  비 오는 날·········· 3"></textarea>
           <button type="button" class="btn btn--ghost btn--sm" id="tocFromBody">본문에서 목차 추출</button>
+          <label class="field" id="tocHtmlField" hidden>
+            <span class="field__label">목차 HTML</span>
+            <textarea id="tocHtml" class="field__input code-box" rows="6" spellcheck="false"></textarea>
+          </label>
         </div>
 
         <h2 class="panel__heading">뒤장</h2>
 
         <label class="field field--check"><input id="includeEpilogue" type="checkbox" /><span>⑥ 참고·색인·뒷말</span></label>
         <div class="matter-detail" id="epilogueField" hidden>
+          <select id="epilogueStyle" class="field__input">
+            <option value="text" selected>텍스트</option>
+            <option value="html">HTML</option>
+          </select>
           <input id="epilogueLabel" class="field__input" type="text" value="참고" placeholder="페이지 제목" />
           <textarea id="epilogueText" class="field__input preface-box" rows="4" spellcheck="false"></textarea>
+          <label class="field" id="epilogueHtmlField" hidden>
+            <span class="field__label">참고 HTML</span>
+            <textarea id="epilogueHtml" class="field__input code-box" rows="6" spellcheck="false"></textarea>
+          </label>
         </div>
 
         <label class="field field--check"><input id="includeColophon" type="checkbox" /><span>⑦ 간기면 (발행·판권)</span></label>
         <div class="matter-detail" id="colophonField" hidden>
+          <select id="colophonStyle" class="field__input">
+            <option value="center" selected>가운데 (텍스트)</option>
+            <option value="bottom">아래 정렬 (텍스트)</option>
+            <option value="html">HTML</option>
+          </select>
           <textarea id="colophonText" class="field__input preface-box" rows="4" spellcheck="false"
             placeholder="발행일 · 인쇄 · 저작권 등"></textarea>
-          <select id="colophonStyle" class="field__input">
-            <option value="center" selected>가운데</option>
-            <option value="bottom">아래 정렬</option>
-          </select>
+          <label class="field" id="colophonHtmlField" hidden>
+            <span class="field__label">간기면 HTML</span>
+            <textarea id="colophonHtml" class="field__input code-box" rows="6" spellcheck="false"></textarea>
+          </label>
         </div>
-
-        <h2 class="panel__heading">맞춤 페이지 (HTML)</h2>
-        <p class="panel__hint panel__hint--compact">
-          <code>p</code> <code>img</code> <code>h2</code> 등 사용. 여러 장은 줄에 <code>---</code> 만 넣어 구분.
-        </p>
-        <label class="field">
-          <span class="field__label">앞쪽 맞춤 HTML</span>
-          <textarea id="customFrontHtml" class="field__input code-box" rows="4" spellcheck="false"
-            placeholder="&lt;div style='text-align:center;padding-top:40mm'&gt;…&lt;/div&gt;"></textarea>
-        </label>
-        <label class="field">
-          <span class="field__label">뒤쪽 맞춤 HTML</span>
-          <textarea id="customBackHtml" class="field__input code-box" rows="4" spellcheck="false"></textarea>
-        </label>
 
         <h2 class="panel__heading">본문 서식</h2>
 
@@ -304,6 +336,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>
