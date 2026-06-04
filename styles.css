@@ -162,7 +162,7 @@ html, body {
 .fs-small .body { font-size: 9pt; line-height: 1.78; }
 .fs-large .body { font-size: 11.5pt; line-height: 1.95; }
 .body p { margin: 0; text-indent: 0; }
-.body p.rblk { word-break: keep-all; overflow-wrap: anywhere; }
+.body p.rblk { word-break: keep-all; overflow-wrap: break-word; }
 
 /* 들여쓰기 (독립 토글) */
 .indent-on .body p:not(.scene) { text-indent: 1em; }

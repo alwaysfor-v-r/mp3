@@ -594,15 +594,21 @@ function fillWords(words, cls, dropFirst, st, newPage, overflow) {
   let p = makeP(dropFirst);
   let html = "";
   for (let i = 0; i < words.length; i++) {
-    p.innerHTML = html + words[i];
-    if (overflow() && html.trim() !== "") {
-      p.innerHTML = html;            // 현재 페이지 확정 (바닥까지 채움)
+    const trial = html + words[i];
+    p.innerHTML = trial;
+    if (!overflow()) {
+      html = trial;
+      continue;
+    }
+    if (html.trim() !== "") {
+      p.innerHTML = html;
       newPage();
-      p = makeP(false);              // 다음 쪽에서 같은 문단 이어쓰기
+      p = makeP(false);
       html = words[i].replace(/^\s+/, "");
       p.innerHTML = html;
     } else {
-      html = html + words[i];
+      html = words[i];
+      p.innerHTML = html;
     }
   }
 }
@@ -650,10 +656,62 @@ function shallowCloneEl(el) {
   if (st) c.setAttribute("style", st);
   return c;
 }
-/* 본문 문단: fillWords와 동일하게 바닥까지 채운 뒤 다음 쪽 (KoPub 등 웹폰트 측정 안정) */
+/* 페이지 나눔: 공백·Intl 단어 단위로만 끊고, 한 단위가 통째로 안 들어갈 때만 글자 분할 */
+function breakUnitsForPagination(text) {
+  const out = [];
+  const parts = text.split(/(\s+)/);
+  for (const part of parts) {
+    if (!part) continue;
+    if (/^\s+$/.test(part)) {
+      out.push(part);
+      continue;
+    }
+    if (typeof Intl !== "undefined" && Intl.Segmenter) {
+      try {
+        const seg = new Intl.Segmenter("ko-KR", { granularity: "word" });
+        let any = false;
+        for (const { segment } of seg.segment(part)) {
+          if (!segment) continue;
+          any = true;
+          out.push(segment);
+        }
+        if (any) continue;
+      } catch (e) { /* ignore */ }
+    }
+    out.push(part);
+  }
+  return out;
+}
+
+function remainderBlock(blockEl, text) {
+  const rem = shallowCloneEl(blockEl);
+  rem.dataset.splitPart = "1";
+  rem.textContent = text;
+  return rem.textContent.trim() ? rem : null;
+}
+
+function fillCharsOfUnit(body, p, blockEl, unit, overflow) {
+  let acc = "";
+  for (let k = 0; k < unit.length; k++) {
+    const bit = unit[k];
+    p.textContent = acc + bit;
+    if (!overflow()) {
+      acc += bit;
+      continue;
+    }
+    if (acc.trim() !== "") {
+      p.textContent = acc;
+      return remainderBlock(blockEl, unit.slice(k));
+    }
+    acc += bit;
+  }
+  p.textContent = acc;
+  return null;
+}
+
 function fillBlockWords(body, blockEl, overflow) {
-  const words = (blockEl.textContent || "").split(/(\s+)/).filter((t) => t !== "");
-  if (!words.length) return null;
+  const units = breakUnitsForPagination(blockEl.textContent || "");
+  if (!units.length) return null;
 
   const p = shallowCloneEl(blockEl);
   p.innerHTML = "";
@@ -661,34 +719,20 @@ function fillBlockWords(body, blockEl, overflow) {
   body.appendChild(p);
   let acc = "";
 
-  for (let i = 0; i < words.length; i++) {
-    const token = words[i];
-    const units = /^\s+$/.test(token) ? [token] : [...token];
-    for (let k = 0; k < units.length; k++) {
-      const bit = units[k];
-      p.textContent = acc + bit;
-      if (!overflow()) {
-        acc += bit;
-        continue;
-      }
-      if (acc.trim() !== "") {
-        p.textContent = acc;
-        const rem = shallowCloneEl(blockEl);
-        rem.dataset.splitPart = "1";
-        rem.textContent = units.slice(k).join("") + words.slice(i + 1).join("");
-        return rem.textContent.trim() ? rem : null;
-      }
-      {
-        const rem = shallowCloneEl(blockEl);
-        rem.dataset.splitPart = "1";
-        rem.textContent = units.slice(k).join("") + words.slice(i + 1).join("");
-        if (rem.textContent.trim()) {
-          body.removeChild(p);
-          return rem;
-        }
-      }
-      acc += bit;
+  for (let i = 0; i < units.length; i++) {
+    const token = units[i];
+    p.textContent = acc + token;
+    if (!overflow()) {
+      acc += token;
+      continue;
     }
+    if (acc.trim() !== "") {
+      p.textContent = acc;
+      return remainderBlock(blockEl, units.slice(i).join(""));
+    }
+    const rem = fillCharsOfUnit(body, p, blockEl, token, overflow);
+    if (rem) return rem;
+    acc = p.textContent || "";
   }
 
   if (blockEl.innerHTML?.trim() && !blockEl.classList.contains("scene")) {
@@ -1504,6 +1548,7 @@ function handleEditableBackspace(body, matterKinds, e) {
   const mains = page ? [...els.book.querySelectorAll(".page--main")] : [];
   const mergeFrom = page ? mains.indexOf(page) : -1;
   const prevRich = els.richDoc.innerHTML;
+  markPendingRefocus(prev);
   mergeEditableBodies(prev, body);
   const kind = body.dataset.pageKind;
   if (matterKinds.has(kind)) syncMatterFromBook(kind);
