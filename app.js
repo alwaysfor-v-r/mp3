@@ -656,31 +656,25 @@ function shallowCloneEl(el) {
   if (st) c.setAttribute("style", st);
   return c;
 }
-/* 페이지 나눔: 공백·Intl 단어 단위로만 끊고, 한 단위가 통째로 안 들어갈 때만 글자 분할 */
-function breakUnitsForPagination(text) {
+/* 페이지 나눔: 공백 단위 + 문장부호는 앞 글자에 붙임 (마침표만 다음 쪽으로 가지 않게) */
+const PUNCT_ONLY = /^[.,!?…。、，．:;·‧ㆍ'"'"“”‘’)\]」』》〉】％%]+$/;
+
+function coalescePaginationUnits(units) {
   const out = [];
-  const parts = text.split(/(\s+)/);
-  for (const part of parts) {
-    if (!part) continue;
-    if (/^\s+$/.test(part)) {
-      out.push(part);
+  for (const u of units) {
+    if (!u) continue;
+    if (out.length && PUNCT_ONLY.test(u)) {
+      out[out.length - 1] += u;
       continue;
     }
-    if (typeof Intl !== "undefined" && Intl.Segmenter) {
-      try {
-        const seg = new Intl.Segmenter("ko-KR", { granularity: "word" });
-        let any = false;
-        for (const { segment } of seg.segment(part)) {
-          if (!segment) continue;
-          any = true;
-          out.push(segment);
-        }
-        if (any) continue;
-      } catch (e) { /* ignore */ }
-    }
-    out.push(part);
+    out.push(u);
   }
   return out;
+}
+
+function breakUnitsForPagination(text) {
+  const raw = text.split(/(\s+)/).filter((p) => p !== "");
+  return coalescePaginationUnits(raw);
 }
 
 function remainderBlock(blockEl, text) {
@@ -727,8 +721,22 @@ function fillBlockWords(body, blockEl, overflow) {
       continue;
     }
     if (acc.trim() !== "") {
-      p.textContent = acc;
-      return remainderBlock(blockEl, units.slice(i).join(""));
+      let j = i;
+      let punct = "";
+      while (j < units.length && PUNCT_ONLY.test(units[j])) {
+        punct += units[j];
+        j += 1;
+      }
+      if (punct) {
+        p.textContent = acc + punct;
+        if (!overflow()) {
+          acc = p.textContent;
+          i = j - 1;
+          continue;
+        }
+        p.textContent = acc;
+      }
+      return remainderBlock(blockEl, units.slice(j).join(""));
     }
     const rem = fillCharsOfUnit(body, p, blockEl, token, overflow);
     if (rem) return rem;
@@ -1027,31 +1035,14 @@ function buildEditAnchorFromBody(body) {
 }
 
 function findMainPageByTextHint(hint) {
-  if (!hint || hint.length < 6) return -1;
-  const h = hint.replace(/\s+/g, " ").trim();
+  if (!hint || hint.length < 16) return -1;
+  const prefix = hint.replace(/\s+/g, " ").trim().slice(0, 48);
   const mains = [...els.book.querySelectorAll(".page--main")];
-  let best = -1;
-  let bestScore = 0;
-  mains.forEach((page, i) => {
-    const t = (page.querySelector(".page__body")?.textContent || "").replace(/\s+/g, " ").trim();
-    if (!t) return;
-    if (t.includes(h)) {
-      if (h.length + 500 > bestScore) {
-        bestScore = h.length + 500;
-        best = i;
-      }
-      return;
-    }
-    const len = Math.min(48, h.length, t.length);
-    if (len < 6) return;
-    if (t.startsWith(h.slice(0, len)) || h.startsWith(t.slice(0, len))) {
-      if (len > bestScore) {
-        bestScore = len;
-        best = i;
-      }
-    }
-  });
-  return best;
+  for (let i = 0; i < mains.length; i++) {
+    const t = (mains[i].querySelector(".page__body")?.textContent || "").replace(/\s+/g, " ").trim();
+    if (t.startsWith(prefix)) return i;
+  }
+  return -1;
 }
 
 function captureEditAnchor() {
@@ -1155,14 +1146,6 @@ function restoreViewAnchor(anchor) {
     currentIndex = alignSpreadLeft(at >= 0 ? at : 0, max);
   } else if (anchor.idx > 0) {
     currentIndex = alignSpreadLeft(anchor.idx, max);
-  } else if (anchor.textHint) {
-    const mi = findMainPageByTextHint(anchor.textHint);
-    if (mi >= 0 && mains[mi]) {
-      const at = pages.indexOf(mains[mi]);
-      currentIndex = alignSpreadLeft(at >= 0 ? at : 0, max);
-      return;
-    }
-    currentIndex = alignSpreadLeft(anchor.idx ?? 0, max);
   } else {
     currentIndex = alignSpreadLeft(anchor.idx ?? 0, max);
   }
@@ -1335,7 +1318,6 @@ function renderBookNow(anchor) {
 
   restoreViewAnchor(anchor);
   updateView();
-  scrollViewToCurrentPage();
   const refocus = pendingRefocusAfterRender;
   const caret = pendingEditCaret;
   isRendering = false;
@@ -1351,6 +1333,7 @@ function renderBookNow(anchor) {
     pendingRefocusAfterRender = false;
     pendingEditCaret = null;
   } else if (refocus && caret) {
+    scrollViewToCurrentPage();
     requestAnimationFrame(() => {
       requestAnimationFrame(() => restoreEditCaret(caret));
     });
@@ -1513,9 +1496,8 @@ function handleBookUndoRedo(e) {
 
 function scheduleRepaginate(anchor, delay = REPAGINATE_DELAY_MS) {
   clearTimeout(repaginateTimer);
-  const a = anchor || captureEditAnchor();
-  if (a && !a.gotoEnd) rememberEditAnchor(a);
-  repaginateTimer = setTimeout(() => renderBook(a), delay);
+  if (anchor && !anchor.gotoEnd) rememberEditAnchor(anchor);
+  repaginateTimer = setTimeout(() => renderBook(lastEditAnchor), delay);
 }
 
 function flushRepaginate(anchor) {
@@ -1570,14 +1552,19 @@ function applyPageEditability() {
     body.contentEditable = "true";
     if (body.dataset.editBound) return;
     body.dataset.editBound = "1";
+    body.addEventListener("mousedown", () => {
+      rememberEditAnchor(buildEditAnchorFromBody(body));
+      clearTimeout(repaginateTimer);
+    });
     body.addEventListener("input", () => handleEditableInput(body, matterKinds));
     body.addEventListener("keydown", (e) => {
       if (e.key === "Backspace") handleEditableBackspace(body, matterKinds, e);
     });
     body.addEventListener("focus", () => {
       const anchor = buildEditAnchorFromBody(body);
+      rememberEditAnchor(anchor);
       if (viewMode !== "flip") currentIndex = anchor.idx;
-      if (syncFlipIndexFromTarget(body)) updateView();
+      else if (syncFlipIndexFromTarget(body)) updateView();
     });
     body.addEventListener("blur", () => {
       if (isRendering || pendingRefocusAfterRender || Date.now() - lastPasteAt < PASTE_GUARD_MS) return;
@@ -1767,8 +1754,17 @@ function bind() {
   els.prevBtn.addEventListener("click", () => go(-1));
   els.nextBtn.addEventListener("click", () => go(1));
   els.book.addEventListener("click", (e) => {
-    if (viewMode !== "flip") return;
     if (e.target.closest(".nav")) return;
+    const body = e.target.closest(".page__body, .matter-body");
+    if (body && els.book.contains(body)) {
+      const anchor = buildEditAnchorFromBody(body);
+      rememberEditAnchor(anchor);
+      currentIndex = anchor.idx;
+      clearTimeout(repaginateTimer);
+      if (viewMode === "flip" && syncFlipIndexFromTarget(e.target)) updateView();
+      return;
+    }
+    if (viewMode !== "flip") return;
     if (syncFlipIndexFromTarget(e.target)) {
       rememberEditAnchor(captureViewAnchor());
       updateView();
