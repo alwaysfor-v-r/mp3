@@ -176,11 +176,8 @@ function parseLog(raw) {
     if (blocks.length && blocks[blocks.length - 1].type !== "scene") blocks.push({ type: "scene" });
   };
 
-  const lines = text.split("\n");
-
-  for (const line of lines) {
-    if (line.trim() === "") continue;
-    if (line.trim() === SCENE) { pushScene(); continue; }
+  const parseLine = (line) => {
+    if (line.trim() === SCENE) { pushScene(); return; }
 
     const parts = line.split(new RegExp(`(${NARR_OPEN}\\d+${NARR_CLOSE})`));
     const multiline = parts.some((p) => {
@@ -219,6 +216,21 @@ function parseLog(raw) {
         blocks.push({ type: hasDialogue ? "dialogue" : "narration", tokens });
       }
     }
+  };
+
+  const chunks = text.split(/\n\s*\n+/);
+  if (chunks.length === 1 && !/\n\s*\n+/.test(text)) {
+    text.split("\n").forEach((line) => {
+      if (!line.trim()) return;
+      parseLine(line);
+    });
+  } else {
+    chunks.forEach((chunk) => {
+      chunk.split("\n").forEach((line) => {
+        if (!line.trim()) return;
+        parseLine(line);
+      });
+    });
   }
 
   while (blocks.length && blocks[0].type === "scene") blocks.shift();
@@ -635,6 +647,7 @@ function fillBlockWords(body, blockEl, overflow) {
 
   const p = shallowCloneEl(blockEl);
   p.innerHTML = "";
+  if (blockEl.dataset.splitPart === "1") p.dataset.splitPart = "1";
   body.appendChild(p);
   let acc = "";
 
@@ -896,10 +909,60 @@ function captureViewAnchor() {
   return { idx, mainIdx, pageKey: page.dataset.pageKey || null };
 }
 
+function goToEndIndex() {
+  const pages = [...els.book.querySelectorAll(".page")];
+  if (!pages.length) {
+    currentIndex = 0;
+    return;
+  }
+  const max = pages.length - 1;
+  const mains = [...els.book.querySelectorAll(".page--main")];
+  if (mains.length) {
+    currentIndex = alignSpreadLeft(pages.indexOf(mains[mains.length - 1]), max);
+  } else {
+    currentIndex = max;
+  }
+}
+
+function captureEditAnchor() {
+  const ae = document.activeElement;
+  const page = ae?.closest?.(".page");
+  if (page && els.book.contains(page)) {
+    const pages = [...els.book.querySelectorAll(".page")];
+    const mains = [...els.book.querySelectorAll(".page--main")];
+    const idx = pages.indexOf(page);
+    return {
+      idx: idx >= 0 ? idx : 0,
+      mainIdx: page.classList.contains("page--main") ? mains.indexOf(page) : -1,
+      pageKey: page.dataset.pageKey || null,
+    };
+  }
+  return captureViewAnchor();
+}
+
+function ensureSourceFromBook() {
+  const hasBody = [...els.book.querySelectorAll(".page--main .page__body")].some(
+    (b) => b.textContent.trim() || b.querySelector("img")
+  );
+  if (hasBody) syncBookToSource();
+}
+
+function appendLogText(text) {
+  ensureSourceFromBook();
+  const html = logToHtml(text);
+  const cur = els.richDoc.innerHTML.trim();
+  els.richDoc.innerHTML = cur ? cur + html : html;
+  renderBook({ gotoEnd: true });
+}
+
 function restoreViewAnchor(anchor) {
   const pages = [...els.book.querySelectorAll(".page")];
   if (!pages.length) {
     currentIndex = 0;
+    return;
+  }
+  if (anchor.gotoEnd) {
+    goToEndIndex();
     return;
   }
   const max = pages.length - 1;
@@ -1102,6 +1165,7 @@ function syncBookToSource() {
       const crossPage = bi > 0 && ci === 0;
       const mergeable =
         crossPage &&
+        clone.dataset?.splitPart === "1" &&
         prev?.classList?.contains("rblk") &&
         !prev.classList.contains("scene") &&
         clone.classList?.contains("rblk") &&
@@ -1115,29 +1179,21 @@ function syncBookToSource() {
   });
 }
 
-function scheduleRepaginate() {
+function scheduleRepaginate(anchor) {
   clearTimeout(repaginateTimer);
-  repaginateTimer = setTimeout(renderBook, 700);
+  const a = anchor || captureEditAnchor();
+  repaginateTimer = setTimeout(() => renderBook(a), 700);
 }
 
-function pasteLogInto(target, text) {
-  const html = logToHtml(text);
-  if (target === els.richDoc) {
-    els.richDoc.innerHTML = html;
-    renderBook();
-    return;
-  }
-  try { document.execCommand("insertHTML", false, html); }
-  catch (e) { target.innerHTML += html; }
-  syncBookToSource();
-  renderBook();
+function pasteLogInto(_target, text) {
+  appendLogText(text);
 }
 
 function handleEditableInput(body, matterKinds) {
   const kind = body.dataset.pageKind;
   if (matterKinds.has(kind)) syncMatterFromBook(kind);
   else syncBookToSource();
-  scheduleRepaginate();
+  scheduleRepaginate(captureEditAnchor());
 }
 
 function handleEditableBackspace(body, matterKinds, e) {
@@ -1178,7 +1234,17 @@ function applyPageEditability() {
       const kind = body.dataset.pageKind;
       if (matterKinds.has(kind)) syncMatterFromBook(kind);
       else syncBookToSource();
-      scheduleRepaginate();
+      const page = body.closest(".page");
+      const pages = [...els.book.querySelectorAll(".page")];
+      const mains = [...els.book.querySelectorAll(".page--main")];
+      const anchor = page
+        ? {
+            idx: pages.indexOf(page),
+            mainIdx: page.classList.contains("page--main") ? mains.indexOf(page) : -1,
+            pageKey: page.dataset.pageKey || null,
+          }
+        : captureViewAnchor();
+      scheduleRepaginate(anchor);
     });
     body.addEventListener("paste", (e) => {
       const text = (e.clipboardData || window.clipboardData)?.getData("text/plain");
@@ -1253,9 +1319,12 @@ function logToHtml(text) {
     })
     .join("");
 }
-function loadLogIntoSheet(text) {
-  els.richDoc.innerHTML = logToHtml(text);
-  renderBook();
+function loadLogIntoSheet(text, append = false) {
+  if (append) appendLogText(text);
+  else {
+    els.richDoc.innerHTML = logToHtml(text);
+    renderBook({ gotoEnd: true });
+  }
 }
 function execRich(cmd, val) {
   restoreRange();
@@ -1416,7 +1485,13 @@ function bind() {
     if (body) body.focus();
   });
   els.clearBtn.addEventListener("click", () => {
+    clearTimeout(repaginateTimer);
+    clearTimeout(timer);
     els.richDoc.innerHTML = "";
+    els.title.value = "";
+    els.titleSubtitle.value = "";
+    els.author.value = "";
+    els.titleMeta.value = "";
     els.prefaceText.value = "";
     els.tocText.value = "";
     els.epilogueText.value = "";
@@ -1434,14 +1509,16 @@ function bind() {
     els.colophonHtml.value = "";
     coverImageDataUrl = null;
     els.coverImage.value = "";
+    els.includeCover.checked = false;
+    els.includeTitleLeaf.checked = false;
+    els.includeHalfTitle.checked = false;
     els.includePreface.checked = false;
     els.includeToc.checked = false;
     els.includeEpilogue.checked = false;
     els.includeColophon.checked = false;
     updateMatterFields();
-    renderBook();
-    const body = els.book.querySelector(".page--main .page__body");
-    if (body) body.focus();
+    currentIndex = 0;
+    renderBook({ idx: 0, mainIdx: -1, pageKey: null });
   });
 
   window.addEventListener("keydown", (e) => {
