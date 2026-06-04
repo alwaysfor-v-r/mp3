@@ -127,6 +127,7 @@ let paginateRoot = null;
 let isRendering = false;
 let lastPasteAt = 0;
 const PASTE_GUARD_MS = 2800;
+let lastEditAnchor = { idx: 0, mainIdx: -1, pageKey: null, textHint: "" };
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -940,20 +941,71 @@ function scrollViewToCurrentPage() {
   scrollStageToPage(pages[clampPageIndex(currentIndex, Math.max(0, pages.length - 1))]);
 }
 
+function rememberEditAnchor(anchor) {
+  if (!anchor || anchor.gotoEnd) return;
+  lastEditAnchor = {
+    idx: anchor.idx ?? 0,
+    mainIdx: anchor.mainIdx ?? -1,
+    pageKey: anchor.pageKey || null,
+    textHint: anchor.textHint || "",
+  };
+}
+
+function buildEditAnchorFromBody(body) {
+  const page = body?.closest?.(".page");
+  if (!page || !els.book.contains(page)) return captureViewAnchor();
+  const pages = [...els.book.querySelectorAll(".page")];
+  const mains = [...els.book.querySelectorAll(".page--main")];
+  const idx = pages.indexOf(page);
+  const text = (body.textContent || "").replace(/\s+/g, " ").trim();
+  const anchor = {
+    idx: idx >= 0 ? idx : 0,
+    mainIdx: page.classList.contains("page--main") ? mains.indexOf(page) : -1,
+    pageKey: page.dataset.pageKey || null,
+    textHint: text.slice(0, 96),
+  };
+  rememberEditAnchor(anchor);
+  return anchor;
+}
+
+function findMainPageByTextHint(hint) {
+  if (!hint || hint.length < 6) return -1;
+  const h = hint.replace(/\s+/g, " ").trim();
+  const mains = [...els.book.querySelectorAll(".page--main")];
+  let best = -1;
+  let bestScore = 0;
+  mains.forEach((page, i) => {
+    const t = (page.querySelector(".page__body")?.textContent || "").replace(/\s+/g, " ").trim();
+    if (!t) return;
+    if (t.includes(h)) {
+      if (h.length + 500 > bestScore) {
+        bestScore = h.length + 500;
+        best = i;
+      }
+      return;
+    }
+    const len = Math.min(48, h.length, t.length);
+    if (len < 6) return;
+    if (t.startsWith(h.slice(0, len)) || h.startsWith(t.slice(0, len))) {
+      if (len > bestScore) {
+        bestScore = len;
+        best = i;
+      }
+    }
+  });
+  return best;
+}
+
 function captureEditAnchor() {
   const ae = document.activeElement;
+  const body = ae?.closest?.(".page__body, .matter-body");
+  if (body && els.book.contains(body)) return buildEditAnchorFromBody(body);
   const page = ae?.closest?.(".page");
   if (page && els.book.contains(page)) {
-    const pages = [...els.book.querySelectorAll(".page")];
-    const mains = [...els.book.querySelectorAll(".page--main")];
-    const idx = pages.indexOf(page);
-    return {
-      idx: idx >= 0 ? idx : 0,
-      mainIdx: page.classList.contains("page--main") ? mains.indexOf(page) : -1,
-      pageKey: page.dataset.pageKey || null,
-    };
+    const b = page.querySelector(".page__body, .matter-body");
+    if (b) return buildEditAnchorFromBody(b);
   }
-  return captureViewAnchor();
+  return lastEditAnchor || captureViewAnchor();
 }
 
 function isPlaceholderBody(body) {
@@ -1029,6 +1081,18 @@ function restoreViewAnchor(anchor) {
     return;
   }
   const max = pages.length - 1;
+  const mains = [...els.book.querySelectorAll(".page--main")];
+
+  if (anchor.textHint) {
+    const mi = findMainPageByTextHint(anchor.textHint);
+    if (mi >= 0 && mains[mi]) {
+      const at = pages.indexOf(mains[mi]);
+      if (at >= 0) {
+        currentIndex = alignSpreadLeft(at, max);
+        return;
+      }
+    }
+  }
   if (anchor.pageKey) {
     const byKey = pages.findIndex((p) => p.dataset.pageKey === anchor.pageKey);
     if (byKey >= 0) {
@@ -1036,11 +1100,20 @@ function restoreViewAnchor(anchor) {
       return;
     }
   }
-  if (anchor.mainIdx >= 0) {
-    const mains = [...els.book.querySelectorAll(".page--main")];
-    const page = mains[Math.min(anchor.mainIdx, Math.max(0, mains.length - 1))];
+  if (anchor.mainIdx >= 0 && mains.length) {
+    const page = mains[Math.min(anchor.mainIdx, mains.length - 1)];
     const at = pages.indexOf(page);
     currentIndex = alignSpreadLeft(at >= 0 ? at : 0, max);
+  } else if (anchor.idx > 0) {
+    currentIndex = alignSpreadLeft(anchor.idx, max);
+  } else if (lastEditAnchor?.textHint) {
+    const mi = findMainPageByTextHint(lastEditAnchor.textHint);
+    if (mi >= 0 && mains[mi]) {
+      const at = pages.indexOf(mains[mi]);
+      currentIndex = alignSpreadLeft(at >= 0 ? at : 0, max);
+    } else {
+      currentIndex = alignSpreadLeft(anchor.idx ?? 0, max);
+    }
   } else {
     currentIndex = alignSpreadLeft(anchor.idx ?? 0, max);
   }
@@ -1145,8 +1218,8 @@ function renderBookNow(anchor) {
 
   restoreViewAnchor(anchor);
   updateView();
+  scrollViewToCurrentPage();
   if (anchor?.gotoEnd) {
-    scrollViewToCurrentPage();
     requestAnimationFrame(() => {
       const mains = [...els.book.querySelectorAll(".page--main")];
       const body = mains[mains.length - 1]?.querySelector(".page__body");
@@ -1157,7 +1230,7 @@ function renderBookNow(anchor) {
 }
 
 function renderBook(forcedAnchor) {
-  const anchor = forcedAnchor || captureViewAnchor();
+  const anchor = forcedAnchor || captureEditAnchor();
   const seq = ++renderSeq;
   Promise.resolve().then(async () => {
     await ensureBookFontLoaded();
@@ -1255,8 +1328,8 @@ function syncBookToSource() {
 
 function scheduleRepaginate(anchor) {
   clearTimeout(repaginateTimer);
-  let a = anchor || captureEditAnchor();
-  if (Date.now() - lastPasteAt < PASTE_GUARD_MS) a = { gotoEnd: true };
+  const a = anchor || captureEditAnchor();
+  if (a && !a.gotoEnd) rememberEditAnchor(a);
   repaginateTimer = setTimeout(() => renderBook(a), 700);
 }
 
@@ -1268,7 +1341,7 @@ function handleEditableInput(body, matterKinds) {
   const kind = body.dataset.pageKind;
   if (matterKinds.has(kind)) syncMatterFromBook(kind);
   else syncBookToSource();
-  scheduleRepaginate(captureEditAnchor());
+  scheduleRepaginate(buildEditAnchorFromBody(body));
 }
 
 function handleEditableBackspace(body, matterKinds, e) {
@@ -1302,6 +1375,8 @@ function applyPageEditability() {
       if (e.key === "Backspace") handleEditableBackspace(body, matterKinds, e);
     });
     body.addEventListener("focus", () => {
+      const anchor = buildEditAnchorFromBody(body);
+      if (viewMode !== "flip") currentIndex = anchor.idx;
       if (syncFlipIndexFromTarget(body)) updateView();
     });
     body.addEventListener("blur", () => {
@@ -1310,16 +1385,7 @@ function applyPageEditability() {
       const kind = body.dataset.pageKind;
       if (matterKinds.has(kind)) syncMatterFromBook(kind);
       else if (hasRealBookBody()) syncBookToSource();
-      const page = body.closest(".page");
-      const pages = [...els.book.querySelectorAll(".page")];
-      const mains = [...els.book.querySelectorAll(".page--main")];
-      const anchor = page
-        ? {
-            idx: pages.indexOf(page),
-            mainIdx: page.classList.contains("page--main") ? mains.indexOf(page) : -1,
-            pageKey: page.dataset.pageKey || null,
-          }
-        : captureViewAnchor();
+      const anchor = body.closest(".page") ? buildEditAnchorFromBody(body) : captureEditAnchor();
       scheduleRepaginate(anchor);
     });
     body.addEventListener("paste", (e) => {
@@ -1354,8 +1420,10 @@ function go(delta) {
   const max = Math.max(0, pages.length - 1);
   const step = (viewMode === "flip" && spreadOn) ? 2 : 1;
   currentIndex = alignSpreadLeft(clampPageIndex(currentIndex, max) + delta * step, max);
+  rememberEditAnchor(captureViewAnchor());
   updateView();
   if (viewMode === "flip") els.stage.scrollTop = 0;
+  else scrollViewToCurrentPage();
 }
 
 /* ---------- PDF ---------- */
@@ -1440,7 +1508,10 @@ function setRichMode(on) {
 
 /* ---------- 이벤트 ---------- */
 let timer = null;
-const schedule = () => { clearTimeout(timer); timer = setTimeout(renderBook, 130); };
+const schedule = () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => renderBook(lastEditAnchor), 130);
+};
 
 function bind() {
   const matterInputs = [
@@ -1497,7 +1568,10 @@ function bind() {
   els.book.addEventListener("click", (e) => {
     if (viewMode !== "flip") return;
     if (e.target.closest(".nav")) return;
-    if (syncFlipIndexFromTarget(e.target)) updateView();
+    if (syncFlipIndexFromTarget(e.target)) {
+      rememberEditAnchor(captureViewAnchor());
+      updateView();
+    }
   });
   window.addEventListener("resize", () => { if (viewMode === "flip" && spreadOn) updateView(); });
 
