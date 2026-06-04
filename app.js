@@ -126,6 +126,7 @@ let renderSeq = 0;
 let paginateRoot = null;
 let isRendering = false;
 let lastPasteAt = 0;
+const PASTE_GUARD_MS = 2800;
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -927,6 +928,18 @@ function goToEndIndex() {
   }
 }
 
+function scrollStageToPage(page) {
+  if (!page || viewMode === "flip") return;
+  const stage = els.stage;
+  const top = page.getBoundingClientRect().top - stage.getBoundingClientRect().top + stage.scrollTop;
+  stage.scrollTop = Math.max(0, top - 48);
+}
+
+function scrollViewToCurrentPage() {
+  const pages = [...els.book.querySelectorAll(".page")];
+  scrollStageToPage(pages[clampPageIndex(currentIndex, Math.max(0, pages.length - 1))]);
+}
+
 function captureEditAnchor() {
   const ae = document.activeElement;
   const page = ae?.closest?.(".page");
@@ -1132,6 +1145,14 @@ function renderBookNow(anchor) {
 
   restoreViewAnchor(anchor);
   updateView();
+  if (anchor?.gotoEnd) {
+    scrollViewToCurrentPage();
+    requestAnimationFrame(() => {
+      const mains = [...els.book.querySelectorAll(".page--main")];
+      const body = mains[mains.length - 1]?.querySelector(".page__body");
+      if (body) body.focus({ preventScroll: viewMode === "flip" });
+    });
+  }
   isRendering = false;
 }
 
@@ -1234,7 +1255,8 @@ function syncBookToSource() {
 
 function scheduleRepaginate(anchor) {
   clearTimeout(repaginateTimer);
-  const a = anchor || captureEditAnchor();
+  let a = anchor || captureEditAnchor();
+  if (Date.now() - lastPasteAt < PASTE_GUARD_MS) a = { gotoEnd: true };
   repaginateTimer = setTimeout(() => renderBook(a), 700);
 }
 
@@ -1283,7 +1305,7 @@ function applyPageEditability() {
       if (syncFlipIndexFromTarget(body)) updateView();
     });
     body.addEventListener("blur", () => {
-      if (isRendering || Date.now() - lastPasteAt < 600) return;
+      if (isRendering || Date.now() - lastPasteAt < PASTE_GUARD_MS) return;
       clearTimeout(repaginateTimer);
       const kind = body.dataset.pageKind;
       if (matterKinds.has(kind)) syncMatterFromBook(kind);
