@@ -86,6 +86,9 @@ const els = {
 
 let repaginateTimer = null;
 let coverImageDataUrl = null;
+const REPAGINATE_DELAY_MS = 1400;
+const undoPast = [];
+const undoFuture = [];
 
 const SANITIZE_TAGS = new Set([
   "P", "BR", "DIV", "SPAN", "H1", "H2", "H3", "H4", "EM", "STRONG", "B", "I", "U",
@@ -623,7 +626,7 @@ function getRichBlocks() {
     if (isSplit && out.length) {
       const prev = out[out.length - 1];
       if (prev.classList.contains("rblk") && !prev.classList.contains("scene")) {
-        prev.innerHTML += isScene ? "" : (n.innerHTML && n.innerHTML.trim() ? n.innerHTML : "");
+        if (!isScene) prev.textContent = (prev.textContent || "") + (n.textContent || "");
         return;
       }
     }
@@ -672,6 +675,15 @@ function fillBlockWords(body, blockEl, overflow) {
         rem.dataset.splitPart = "1";
         rem.textContent = units.slice(k).join("") + words.slice(i + 1).join("");
         return rem.textContent.trim() ? rem : null;
+      }
+      {
+        const rem = shallowCloneEl(blockEl);
+        rem.dataset.splitPart = "1";
+        rem.textContent = units.slice(k).join("") + words.slice(i + 1).join("");
+        if (rem.textContent.trim()) {
+          body.removeChild(p);
+          return rem;
+        }
       }
       acc += bit;
     }
@@ -1056,6 +1068,7 @@ function appendLogText(text) {
   if (!trimmed) return;
   lastPasteAt = Date.now();
   clearTimeout(repaginateTimer);
+  pushUndoBefore(els.richDoc.innerHTML);
 
   const html = logToHtmlWithFallback(trimmed);
   if (hasRealBookBody()) ensureSourceFromBook();
@@ -1083,16 +1096,6 @@ function restoreViewAnchor(anchor) {
   const max = pages.length - 1;
   const mains = [...els.book.querySelectorAll(".page--main")];
 
-  if (anchor.textHint) {
-    const mi = findMainPageByTextHint(anchor.textHint);
-    if (mi >= 0 && mains[mi]) {
-      const at = pages.indexOf(mains[mi]);
-      if (at >= 0) {
-        currentIndex = alignSpreadLeft(at, max);
-        return;
-      }
-    }
-  }
   if (anchor.pageKey) {
     const byKey = pages.findIndex((p) => p.dataset.pageKey === anchor.pageKey);
     if (byKey >= 0) {
@@ -1106,14 +1109,14 @@ function restoreViewAnchor(anchor) {
     currentIndex = alignSpreadLeft(at >= 0 ? at : 0, max);
   } else if (anchor.idx > 0) {
     currentIndex = alignSpreadLeft(anchor.idx, max);
-  } else if (lastEditAnchor?.textHint) {
-    const mi = findMainPageByTextHint(lastEditAnchor.textHint);
+  } else if (anchor.textHint) {
+    const mi = findMainPageByTextHint(anchor.textHint);
     if (mi >= 0 && mains[mi]) {
       const at = pages.indexOf(mains[mi]);
       currentIndex = alignSpreadLeft(at >= 0 ? at : 0, max);
-    } else {
-      currentIndex = alignSpreadLeft(anchor.idx ?? 0, max);
+      return;
     }
+    currentIndex = alignSpreadLeft(anchor.idx ?? 0, max);
   } else {
     currentIndex = alignSpreadLeft(anchor.idx ?? 0, max);
   }
@@ -1318,7 +1321,8 @@ function syncBookToSource() {
         clone.classList?.contains("rblk") &&
         !clone.classList.contains("scene");
       if (mergeable) {
-        prev.innerHTML += clone.innerHTML;
+        prev.textContent = (prev.textContent || "") + (clone.textContent || "");
+        delete prev.dataset.splitPart;
         return;
       }
       els.richDoc.appendChild(clone);
@@ -1326,11 +1330,50 @@ function syncBookToSource() {
   });
 }
 
-function scheduleRepaginate(anchor) {
+function clearUndoHistory() {
+  undoPast.length = 0;
+  undoFuture.length = 0;
+}
+
+function pushUndoBefore(prevHtml) {
+  if (undoPast.length && undoPast[undoPast.length - 1] === prevHtml) return;
+  undoPast.push(prevHtml);
+  if (undoPast.length > 80) undoPast.shift();
+  undoFuture.length = 0;
+}
+
+function isBookTypingTarget(el) {
+  return el && el.isContentEditable && els.book.contains(el);
+}
+
+function undoBookEdit() {
+  if (!undoPast.length) return false;
+  undoFuture.push(els.richDoc.innerHTML);
+  els.richDoc.innerHTML = undoPast.pop();
+  renderBook(lastEditAnchor);
+  return true;
+}
+
+function redoBookEdit() {
+  if (!undoFuture.length) return false;
+  pushUndoBefore(els.richDoc.innerHTML);
+  els.richDoc.innerHTML = undoFuture.pop();
+  renderBook(lastEditAnchor);
+  return true;
+}
+
+function scheduleRepaginate(anchor, delay = REPAGINATE_DELAY_MS) {
   clearTimeout(repaginateTimer);
   const a = anchor || captureEditAnchor();
   if (a && !a.gotoEnd) rememberEditAnchor(a);
-  repaginateTimer = setTimeout(() => renderBook(a), 700);
+  repaginateTimer = setTimeout(() => renderBook(a), delay);
+}
+
+function flushRepaginate(anchor) {
+  clearTimeout(repaginateTimer);
+  const a = anchor || lastEditAnchor || captureEditAnchor();
+  if (a && !a.gotoEnd) rememberEditAnchor(a);
+  renderBook(a);
 }
 
 function pasteLogInto(_target, text) {
@@ -1339,8 +1382,10 @@ function pasteLogInto(_target, text) {
 
 function handleEditableInput(body, matterKinds) {
   const kind = body.dataset.pageKind;
+  const prevRich = els.richDoc.innerHTML;
   if (matterKinds.has(kind)) syncMatterFromBook(kind);
   else syncBookToSource();
+  if (!matterKinds.has(kind) && els.richDoc.innerHTML !== prevRich) pushUndoBefore(prevRich);
   scheduleRepaginate(buildEditAnchorFromBody(body));
 }
 
@@ -1372,21 +1417,29 @@ function applyPageEditability() {
     body.dataset.editBound = "1";
     body.addEventListener("input", () => handleEditableInput(body, matterKinds));
     body.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        if (e.shiftKey) {
+          if (redoBookEdit()) e.preventDefault();
+        } else if (undoPast.length && undoBookEdit()) {
+          e.preventDefault();
+        }
+        return;
+      }
       if (e.key === "Backspace") handleEditableBackspace(body, matterKinds, e);
     });
     body.addEventListener("focus", () => {
       const anchor = buildEditAnchorFromBody(body);
       if (viewMode !== "flip") currentIndex = anchor.idx;
       if (syncFlipIndexFromTarget(body)) updateView();
+      pushUndoBefore(els.richDoc.innerHTML);
     });
     body.addEventListener("blur", () => {
       if (isRendering || Date.now() - lastPasteAt < PASTE_GUARD_MS) return;
-      clearTimeout(repaginateTimer);
       const kind = body.dataset.pageKind;
       if (matterKinds.has(kind)) syncMatterFromBook(kind);
       else if (hasRealBookBody()) syncBookToSource();
       const anchor = body.closest(".page") ? buildEditAnchorFromBody(body) : captureEditAnchor();
-      scheduleRepaginate(anchor);
+      flushRepaginate(anchor);
     });
     body.addEventListener("paste", (e) => {
       let text = (e.clipboardData || window.clipboardData)?.getData("text/plain") || "";
@@ -1651,6 +1704,7 @@ function bind() {
   els.clearBtn.addEventListener("click", () => {
     clearTimeout(repaginateTimer);
     clearTimeout(timer);
+    clearUndoHistory();
     els.richDoc.innerHTML = "";
     els.title.value = "";
     els.titleSubtitle.value = "";
