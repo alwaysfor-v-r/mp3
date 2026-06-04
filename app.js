@@ -131,6 +131,8 @@ let isRendering = false;
 let lastPasteAt = 0;
 const PASTE_GUARD_MS = 2800;
 let lastEditAnchor = { idx: 0, mainIdx: -1, pageKey: null, textHint: "" };
+let pendingRefocusAfterRender = false;
+let pendingEditCaret = null;
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -1162,6 +1164,74 @@ async function ensureBookFontLoaded() {
   }
 }
 
+function captureEditCaret(body) {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount || !body?.contains(sel.anchorNode)) return buildEditAnchorFromBody(body);
+  const range = sel.getRangeAt(0);
+  const pre = range.cloneRange();
+  pre.selectNodeContents(body);
+  pre.setEnd(range.endContainer, range.endOffset);
+  const anchor = buildEditAnchorFromBody(body);
+  anchor.offset = pre.toString().length;
+  return anchor;
+}
+
+function placeCaretInBody(body, offset) {
+  const want = Math.max(0, offset || 0);
+  let left = want;
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const len = node.length;
+    if (left <= len) {
+      const range = document.createRange();
+      range.setStart(node, left);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    left -= len;
+  }
+  const range = document.createRange();
+  range.selectNodeContents(body);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function findEditableBodyForAnchor(caret) {
+  if (!caret) return null;
+  const mains = [...els.book.querySelectorAll(".page--main")];
+  if (caret.mainIdx >= 0 && mains[caret.mainIdx]) {
+    return mains[caret.mainIdx].querySelector(".page__body");
+  }
+  if (caret.pageKey) {
+    const page = els.book.querySelector(`[data-page-key="${caret.pageKey}"]`);
+    return page?.querySelector(".page__body, .matter-body") || null;
+  }
+  if (caret.textHint) {
+    const mi = findMainPageByTextHint(caret.textHint);
+    if (mi >= 0 && mains[mi]) return mains[mi].querySelector(".page__body");
+  }
+  return mains[0]?.querySelector(".page__body") || null;
+}
+
+function restoreEditCaret(caret) {
+  const body = findEditableBodyForAnchor(caret);
+  if (!body) return;
+  body.focus({ preventScroll: viewMode === "flip" });
+  const len = (body.textContent || "").length;
+  placeCaretInBody(body, Math.min(caret.offset ?? len, len));
+}
+
+function markPendingRefocus(body) {
+  pendingRefocusAfterRender = true;
+  pendingEditCaret = captureEditCaret(body);
+}
+
 function isAtEditableStart(body) {
   const sel = window.getSelection();
   if (!sel?.rangeCount || !body.contains(sel.anchorNode)) return false;
@@ -1222,14 +1292,27 @@ function renderBookNow(anchor) {
   restoreViewAnchor(anchor);
   updateView();
   scrollViewToCurrentPage();
+  const refocus = pendingRefocusAfterRender;
+  const caret = pendingEditCaret;
+  isRendering = false;
   if (anchor?.gotoEnd) {
     requestAnimationFrame(() => {
       const mains = [...els.book.querySelectorAll(".page--main")];
       const body = mains[mains.length - 1]?.querySelector(".page__body");
-      if (body) body.focus({ preventScroll: viewMode === "flip" });
+      if (body) {
+        body.focus({ preventScroll: viewMode === "flip" });
+        placeCaretInBody(body, body.textContent.length);
+      }
     });
+    pendingRefocusAfterRender = false;
+    pendingEditCaret = null;
+  } else if (refocus && caret) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => restoreEditCaret(caret));
+    });
+    pendingRefocusAfterRender = false;
+    pendingEditCaret = null;
   }
-  isRendering = false;
 }
 
 function renderBook(forcedAnchor) {
@@ -1350,6 +1433,8 @@ function undoBookEdit() {
   if (!undoPast.length) return false;
   undoFuture.push(els.richDoc.innerHTML);
   els.richDoc.innerHTML = undoPast.pop();
+  pendingRefocusAfterRender = true;
+  pendingEditCaret = { ...lastEditAnchor, offset: null };
   renderBook(lastEditAnchor);
   return true;
 }
@@ -1358,8 +1443,28 @@ function redoBookEdit() {
   if (!undoFuture.length) return false;
   pushUndoBefore(els.richDoc.innerHTML);
   els.richDoc.innerHTML = undoFuture.pop();
+  pendingRefocusAfterRender = true;
+  pendingEditCaret = { ...lastEditAnchor, offset: null };
   renderBook(lastEditAnchor);
   return true;
+}
+
+function handleBookUndoRedo(e) {
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT")) return;
+  if (ae === els.richDoc || els.richDoc.contains(ae)) return;
+  const inBook = ae && ae.isContentEditable && els.book.contains(ae);
+  if (!inBook && !undoPast.length && !undoFuture.length) return;
+  if (e.shiftKey) {
+    if (redoBookEdit()) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  } else if (undoBookEdit()) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
 }
 
 function scheduleRepaginate(anchor, delay = REPAGINATE_DELAY_MS) {
@@ -1383,6 +1488,7 @@ function pasteLogInto(_target, text) {
 function handleEditableInput(body, matterKinds) {
   const kind = body.dataset.pageKind;
   const prevRich = els.richDoc.innerHTML;
+  markPendingRefocus(body);
   if (matterKinds.has(kind)) syncMatterFromBook(kind);
   else syncBookToSource();
   if (!matterKinds.has(kind) && els.richDoc.innerHTML !== prevRich) pushUndoBefore(prevRich);
@@ -1397,10 +1503,14 @@ function handleEditableBackspace(body, matterKinds, e) {
   const page = body.closest(".page--main");
   const mains = page ? [...els.book.querySelectorAll(".page--main")] : [];
   const mergeFrom = page ? mains.indexOf(page) : -1;
+  const prevRich = els.richDoc.innerHTML;
   mergeEditableBodies(prev, body);
   const kind = body.dataset.pageKind;
   if (matterKinds.has(kind)) syncMatterFromBook(kind);
-  else syncBookToSource();
+  else {
+    syncBookToSource();
+    if (els.richDoc.innerHTML !== prevRich) pushUndoBefore(prevRich);
+  }
   clearTimeout(repaginateTimer);
   const anchor =
     mergeFrom > 0
@@ -1417,24 +1527,17 @@ function applyPageEditability() {
     body.dataset.editBound = "1";
     body.addEventListener("input", () => handleEditableInput(body, matterKinds));
     body.addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        if (e.shiftKey) {
-          if (redoBookEdit()) e.preventDefault();
-        } else if (undoPast.length && undoBookEdit()) {
-          e.preventDefault();
-        }
-        return;
-      }
       if (e.key === "Backspace") handleEditableBackspace(body, matterKinds, e);
     });
     body.addEventListener("focus", () => {
       const anchor = buildEditAnchorFromBody(body);
       if (viewMode !== "flip") currentIndex = anchor.idx;
       if (syncFlipIndexFromTarget(body)) updateView();
-      pushUndoBefore(els.richDoc.innerHTML);
     });
     body.addEventListener("blur", () => {
-      if (isRendering || Date.now() - lastPasteAt < PASTE_GUARD_MS) return;
+      if (isRendering || pendingRefocusAfterRender || Date.now() - lastPasteAt < PASTE_GUARD_MS) return;
+      pendingRefocusAfterRender = false;
+      pendingEditCaret = null;
       const kind = body.dataset.pageKind;
       if (matterKinds.has(kind)) syncMatterFromBook(kind);
       else if (hasRealBookBody()) syncBookToSource();
@@ -1740,6 +1843,7 @@ function bind() {
   });
 
   window.addEventListener("keydown", (e) => {
+    handleBookUndoRedo(e);
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") { e.preventDefault(); saveAsPdf(); return; }
     const ae = document.activeElement;
     const typing = ae === els.richDoc || els.richDoc.contains(ae) ||
