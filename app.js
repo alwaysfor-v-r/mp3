@@ -133,6 +133,7 @@ const PASTE_GUARD_MS = 2800;
 let lastEditAnchor = { idx: 0, mainIdx: -1, pageKey: null, textHint: "" };
 let pendingRefocusAfterRender = false;
 let pendingEditCaret = null;
+let bookDirty = false;
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -634,7 +635,7 @@ function getRichBlocks() {
     if (isSplit && out.length) {
       const prev = out[out.length - 1];
       if (prev.classList.contains("rblk") && !prev.classList.contains("scene")) {
-        if (!isScene) prev.textContent = (prev.textContent || "") + (n.textContent || "");
+        if (!isScene) prev.textContent = mergeContinuationText(prev.textContent, n.textContent);
         return;
       }
     }
@@ -656,25 +657,16 @@ function shallowCloneEl(el) {
   if (st) c.setAttribute("style", st);
   return c;
 }
-/* 페이지 나눔: 공백 단위 + 문장부호는 앞 글자에 붙임 (마침표만 다음 쪽으로 가지 않게) */
-const PUNCT_ONLY = /^[.,!?…。、，．:;·‧ㆍ'"'"“”‘’)\]」』》〉】％%]+$/;
-
-function coalescePaginationUnits(units) {
-  const out = [];
-  for (const u of units) {
-    if (!u) continue;
-    if (out.length && PUNCT_ONLY.test(u)) {
-      out[out.length - 1] += u;
-      continue;
-    }
-    out.push(u);
+function mergeContinuationText(prevText, contText) {
+  const a = prevText || "";
+  const b = contText || "";
+  if (!b) return a;
+  if (a.endsWith(b)) return a;
+  const maxO = Math.min(a.length, b.length);
+  for (let o = maxO; o > 0; o--) {
+    if (a.slice(-o) === b.slice(0, o)) return a + b.slice(o);
   }
-  return out;
-}
-
-function breakUnitsForPagination(text) {
-  const raw = text.split(/(\s+)/).filter((p) => p !== "");
-  return coalescePaginationUnits(raw);
+  return a + b;
 }
 
 function remainderBlock(blockEl, text) {
@@ -684,70 +676,57 @@ function remainderBlock(blockEl, text) {
   return rem.textContent.trim() ? rem : null;
 }
 
-function fillCharsOfUnit(body, p, blockEl, unit, overflow) {
-  let acc = "";
-  for (let k = 0; k < unit.length; k++) {
-    const bit = unit[k];
-    p.textContent = acc + bit;
-    if (!overflow()) {
-      acc += bit;
-      continue;
-    }
-    if (acc.trim() !== "") {
-      p.textContent = acc;
-      return remainderBlock(blockEl, unit.slice(k));
-    }
-    acc += bit;
-  }
-  p.textContent = acc;
-  return null;
+function snapSplitAtBoundary(full, best) {
+  if (best <= 0 || best >= full.length) return best;
+  const rest = full.slice(best);
+  if (/^\s/.test(rest)) return best;
+  const head = full.slice(0, best);
+  const sp = head.lastIndexOf(" ");
+  if (sp > 0 && sp > best - 32) return sp + 1;
+  return best;
 }
 
-function fillBlockWords(body, blockEl, overflow) {
-  const units = breakUnitsForPagination(blockEl.textContent || "");
-  if (!units.length) return null;
-
+/* 페이지 나눔: 브라우저 줄바꿈 기준으로 들어가는 길이만 이진 탐색 (글자 단위 쪼개기 제거) */
+function fillBlockByMeasure(body, blockEl, overflow) {
+  const full = blockEl.textContent || "";
   const p = shallowCloneEl(blockEl);
   p.innerHTML = "";
   if (blockEl.dataset.splitPart === "1") p.dataset.splitPart = "1";
   body.appendChild(p);
-  let acc = "";
 
-  for (let i = 0; i < units.length; i++) {
-    const token = units[i];
-    p.textContent = acc + token;
+  if (!full.length) {
+    p.innerHTML = blockEl.innerHTML?.trim() ? blockEl.innerHTML : "<br>";
+    return overflow() ? (body.removeChild(p), null) : null;
+  }
+
+  let lo = 0;
+  let hi = full.length;
+  let best = 0;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    p.textContent = full.slice(0, mid);
     if (!overflow()) {
-      acc += token;
-      continue;
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
     }
-    if (acc.trim() !== "") {
-      let j = i;
-      let punct = "";
-      while (j < units.length && PUNCT_ONLY.test(units[j])) {
-        punct += units[j];
-        j += 1;
-      }
-      if (punct) {
-        p.textContent = acc + punct;
-        if (!overflow()) {
-          acc = p.textContent;
-          i = j - 1;
-          continue;
-        }
-        p.textContent = acc;
-      }
-      return remainderBlock(blockEl, units.slice(j).join(""));
-    }
-    const rem = fillCharsOfUnit(body, p, blockEl, token, overflow);
-    if (rem) return rem;
-    acc = p.textContent || "";
   }
 
-  if (blockEl.innerHTML?.trim() && !blockEl.classList.contains("scene")) {
-    p.innerHTML = blockEl.innerHTML;
-    if (overflow()) p.textContent = acc;
+  if (best <= 0 && full.length > 0) {
+    p.textContent = full.slice(0, 1);
+    if (overflow()) {
+      body.removeChild(p);
+      return remainderBlock(blockEl, full);
+    }
+    best = 1;
   }
-  return null;
+
+  best = snapSplitAtBoundary(full, best);
+  p.textContent = full.slice(0, best);
+  const rest = full.slice(best);
+  if (!rest.trim()) return null;
+  return remainderBlock(blockEl, rest);
 }
 
 function fillBlock(body, blockEl, overflow) {
@@ -768,7 +747,7 @@ function fillBlock(body, blockEl, overflow) {
   if (!overflow()) return null;
   body.removeChild(whole);
 
-  return fillBlockWords(body, blockEl, overflow);
+  return fillBlockByMeasure(body, blockEl, overflow);
 }
 
 function paginateRich(blocks, opts, root) {
@@ -1104,6 +1083,7 @@ function appendLogText(text) {
   const trimmed = (text || "").trim();
   if (!trimmed) return;
   lastPasteAt = Date.now();
+  bookDirty = true;
   clearTimeout(repaginateTimer);
   pushUndoBefore(els.richDoc.innerHTML);
 
@@ -1321,6 +1301,7 @@ function renderBookNow(anchor) {
   const refocus = pendingRefocusAfterRender;
   const caret = pendingEditCaret;
   isRendering = false;
+  bookDirty = false;
   if (anchor?.gotoEnd) {
     requestAnimationFrame(() => {
       const mains = [...els.book.querySelectorAll(".page--main")];
@@ -1431,9 +1412,22 @@ function syncBookToSource() {
         clone.classList?.contains("rblk") &&
         !clone.classList.contains("scene");
       if (mergeable) {
-        prev.textContent = (prev.textContent || "") + (clone.textContent || "");
+        prev.textContent = mergeContinuationText(prev.textContent, clone.textContent);
         delete prev.dataset.splitPart;
         return;
+      }
+      if (
+        crossPage &&
+        prev?.classList?.contains("rblk") &&
+        !prev.classList.contains("scene") &&
+        clone.classList?.contains("rblk") &&
+        !clone.classList.contains("scene")
+      ) {
+        const merged = mergeContinuationText(prev.textContent, clone.textContent);
+        if (merged.length < (prev.textContent || "").length + (clone.textContent || "").length) {
+          prev.textContent = merged;
+          return;
+        }
       }
       els.richDoc.appendChild(clone);
     });
@@ -1514,6 +1508,7 @@ function pasteLogInto(_target, text) {
 function handleEditableInput(body, matterKinds) {
   const kind = body.dataset.pageKind;
   const prevRich = els.richDoc.innerHTML;
+  bookDirty = true;
   markPendingRefocus(body);
   if (matterKinds.has(kind)) syncMatterFromBook(kind);
   else syncBookToSource();
@@ -1530,6 +1525,7 @@ function handleEditableBackspace(body, matterKinds, e) {
   const mains = page ? [...els.book.querySelectorAll(".page--main")] : [];
   const mergeFrom = page ? mains.indexOf(page) : -1;
   const prevRich = els.richDoc.innerHTML;
+  bookDirty = true;
   markPendingRefocus(prev);
   mergeEditableBodies(prev, body);
   const kind = body.dataset.pageKind;
@@ -1570,9 +1566,8 @@ function applyPageEditability() {
       if (isRendering || pendingRefocusAfterRender || Date.now() - lastPasteAt < PASTE_GUARD_MS) return;
       pendingRefocusAfterRender = false;
       pendingEditCaret = null;
-      const kind = body.dataset.pageKind;
-      if (matterKinds.has(kind)) syncMatterFromBook(kind);
-      else if (hasRealBookBody()) syncBookToSource();
+      if (!bookDirty) return;
+      bookDirty = false;
       const anchor = body.closest(".page") ? buildEditAnchorFromBody(body) : captureEditAnchor();
       flushRepaginate(anchor);
     });
@@ -1673,7 +1668,7 @@ function execRich(cmd, val) {
   try { document.execCommand("styleWithCSS", false, true); } catch (e) {}
   document.execCommand(cmd, false, val);
   saveRange();
-  if (inBook) { syncBookToSource(); scheduleRepaginate(); }
+  if (inBook) { bookDirty = true; syncBookToSource(); scheduleRepaginate(); }
   else schedule();
 }
 function applyFontSizePx(px) {
@@ -1849,6 +1844,7 @@ function bind() {
     clearTimeout(repaginateTimer);
     clearTimeout(timer);
     clearUndoHistory();
+    bookDirty = false;
     els.richDoc.innerHTML = "";
     els.title.value = "";
     els.titleSubtitle.value = "";
