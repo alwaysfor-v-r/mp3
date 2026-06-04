@@ -124,6 +124,8 @@ let totalPages = 0;
 let useRich = false;
 let renderSeq = 0;
 let paginateRoot = null;
+let isRendering = false;
+let lastPasteAt = 0;
 
 /* ---------- 유틸 ---------- */
 function escapeHtml(s) {
@@ -612,6 +614,7 @@ function getRichBlocks() {
       return;
     }
     if (n.nodeType !== Node.ELEMENT_NODE) return;
+    if (n.classList?.contains("empty")) return;
     const txt = n.textContent || "";
     const isScene = (n.classList && n.classList.contains("scene")) || isDivider(txt);
     const isSplit = n.dataset?.splitPart === "1";
@@ -940,19 +943,66 @@ function captureEditAnchor() {
   return captureViewAnchor();
 }
 
+function isPlaceholderBody(body) {
+  const kids = [...body.children];
+  return kids.length === 1 && kids[0].classList?.contains("empty");
+}
+
+function hasRealBookBody() {
+  return [...els.book.querySelectorAll(".page--main .page__body")].some((b) => {
+    if (isPlaceholderBody(b)) return false;
+    return b.textContent.trim() || b.querySelector("img");
+  });
+}
+
+function isPlaceholderOnlySource(html) {
+  if (!html?.trim()) return true;
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+  const wrap = doc.body.firstElementChild || doc.body;
+  const kids = [...wrap.children];
+  return kids.length === 1 && kids[0].classList?.contains("empty");
+}
+
+function stripPlaceholderFromSource(html) {
+  if (!html?.trim() || isPlaceholderOnlySource(html)) return "";
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+  const wrap = doc.body.firstElementChild || doc.body;
+  [...wrap.querySelectorAll(".empty")].forEach((el) => el.remove());
+  return wrap.innerHTML.trim();
+}
+
 function ensureSourceFromBook() {
-  const hasBody = [...els.book.querySelectorAll(".page--main .page__body")].some(
-    (b) => b.textContent.trim() || b.querySelector("img")
-  );
-  if (hasBody) syncBookToSource();
+  if (hasRealBookBody()) syncBookToSource();
+}
+
+function logToHtmlWithFallback(text) {
+  let html = logToHtml(text);
+  if (html.trim()) return html;
+  return text
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<p class="rblk">${escapeHtml(line)}</p>`)
+    .join("");
 }
 
 function appendLogText(text) {
-  ensureSourceFromBook();
-  const html = logToHtml(text);
-  const cur = els.richDoc.innerHTML.trim();
+  const trimmed = (text || "").trim();
+  if (!trimmed) return;
+  lastPasteAt = Date.now();
+  clearTimeout(repaginateTimer);
+
+  const html = logToHtmlWithFallback(trimmed);
+  if (hasRealBookBody()) ensureSourceFromBook();
+  let cur = stripPlaceholderFromSource(els.richDoc.innerHTML);
   els.richDoc.innerHTML = cur ? cur + html : html;
-  renderBook({ gotoEnd: true });
+
+  const seq = ++renderSeq;
+  Promise.resolve().then(async () => {
+    await ensureBookFontLoaded();
+    if (seq !== renderSeq) return;
+    renderBookNow({ gotoEnd: true });
+  });
 }
 
 function restoreViewAnchor(anchor) {
@@ -1057,6 +1107,7 @@ function mergeEditableBodies(prev, cur) {
 }
 
 function renderBookNow(anchor) {
+  isRendering = true;
   const opts = getOpts();
   const size = PAGE_SIZE[els.pageSize.value] || PAGE_SIZE.a5;
   const narr = document.querySelector('input[name="narr"]:checked')?.value || "plain";
@@ -1081,6 +1132,7 @@ function renderBookNow(anchor) {
 
   restoreViewAnchor(anchor);
   updateView();
+  isRendering = false;
 }
 
 function renderBook(forcedAnchor) {
@@ -1160,6 +1212,7 @@ function syncBookToSource() {
   els.richDoc.innerHTML = "";
   bodies.forEach((b, bi) => {
     [...b.children].forEach((child, ci) => {
+      if (child.classList?.contains("empty")) return;
       const clone = child.cloneNode(true);
       const prev = els.richDoc.lastElementChild;
       const crossPage = bi > 0 && ci === 0;
@@ -1230,10 +1283,11 @@ function applyPageEditability() {
       if (syncFlipIndexFromTarget(body)) updateView();
     });
     body.addEventListener("blur", () => {
+      if (isRendering || Date.now() - lastPasteAt < 600) return;
       clearTimeout(repaginateTimer);
       const kind = body.dataset.pageKind;
       if (matterKinds.has(kind)) syncMatterFromBook(kind);
-      else syncBookToSource();
+      else if (hasRealBookBody()) syncBookToSource();
       const page = body.closest(".page");
       const pages = [...els.book.querySelectorAll(".page")];
       const mains = [...els.book.querySelectorAll(".page--main")];
@@ -1247,8 +1301,15 @@ function applyPageEditability() {
       scheduleRepaginate(anchor);
     });
     body.addEventListener("paste", (e) => {
-      const text = (e.clipboardData || window.clipboardData)?.getData("text/plain");
-      if (!text) return;
+      let text = (e.clipboardData || window.clipboardData)?.getData("text/plain") || "";
+      if (!text.trim()) {
+        const html = (e.clipboardData || window.clipboardData)?.getData("text/html") || "";
+        if (html) {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          text = doc.body.innerText || "";
+        }
+      }
+      if (!text.trim()) return;
       const kind = body.dataset.pageKind;
       if (matterKinds.has(kind)) return;
       e.preventDefault();
@@ -1426,8 +1487,15 @@ function bind() {
   });
   els.richDoc.addEventListener("blur", saveRange);
   els.richDoc.addEventListener("paste", (e) => {
-    const text = (e.clipboardData || window.clipboardData)?.getData("text/plain");
-    if (!text) return;
+    let text = (e.clipboardData || window.clipboardData)?.getData("text/plain") || "";
+    if (!text.trim()) {
+      const html = (e.clipboardData || window.clipboardData)?.getData("text/html") || "";
+      if (html) {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        text = doc.body.innerText || "";
+      }
+    }
+    if (!text.trim()) return;
     e.preventDefault();
     pasteLogInto(els.richDoc, text);
   });
